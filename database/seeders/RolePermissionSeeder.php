@@ -223,7 +223,7 @@ class RolePermissionSeeder extends Seeder
             // Inspections - Review
             'FrontEnd.review inspections',
             // 'FrontEnd.revisi inspections',
-            'FrontEnd.review inspection report',
+            // 'FrontEnd.review inspection report',
             // 'FrontEnd.approve inspections report',
             'FrontEnd.download pdf',
             

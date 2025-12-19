@@ -104,6 +104,7 @@ $inspectionPoints = [
         ['name' => 'Nama Pemilik', 'description' => 'Pemilik Kendaraan', 'order' => 21],
         ['name' => 'Kepemilik', 'description' => 'Pemilik Kendaraan', 'order' => 22],
         ['name' => 'KIR (Komersil)', 'description' => 'Pemilik Kendaraan', 'order' => 23],
+        ['name' => 'BS/BM', 'description' => 'Pemilik Kendaraan', 'order' => 24],
     ],
 
     // Foto Kendaraan - OK
