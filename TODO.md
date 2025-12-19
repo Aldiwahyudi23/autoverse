@@ -1,0 +1,5 @@
+- [x] Update CSS for camera-controls to center capture button and position side buttons absolutely
+- [x] Add classes to flash and switch buttons for positioning
+- [x] Improve video constraints for better quality (higher resolution, frame rate)
+- [x] Add touch focus functionality with indicator
+- [x] Test the changes

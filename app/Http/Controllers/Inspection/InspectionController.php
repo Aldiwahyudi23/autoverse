@@ -1,0 +1,1363 @@
+<?php
+
+namespace App\Http\Controllers\Inspection;
+
+use App\Helpers\HtmlToWhatsApp;
+use App\Http\Controllers\Controller;
+use App\Mail\InspectionReportMail;
+use App\Models\Customer;
+use App\Models\DataCar\CarDetail;
+use App\Models\DataInspection\AppMenu;
+use App\Models\DataInspection\Categorie;
+use App\Models\DataInspection\Component;
+use App\Models\DataInspection\Inspection;
+use App\Models\DataInspection\InspectionImage;
+use App\Models\DataInspection\InspectionPoint;
+use App\Models\DataInspection\InspectionResult;
+use App\Models\DataInspection\MenuPoint;
+use App\Models\Finance\Transaction;
+use App\Models\Finance\TransactionDistribution;
+use App\Models\Team\Region;
+use App\Models\Team\RegionTeam;
+use App\Models\User;
+use App\Services\InspectionmPdfGenerator;
+use App\Services\InspectionPdfGenerator;
+use App\Services\NativeImageCompressor;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Mpdf\Mpdf;
+use setasign\Fpdi\PdfParser\StreamReader;
+use setasign\FpdiProtection\FpdiProtection;
+use Spatie\Browsershot\Browsershot;
+
+class InspectionController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        //
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+   
+      // Show the inspection form
+   public function create(Inspection $inspection)
+    {
+         $CarDetail = CarDetail::with(['brand', 'model', 'type'])
+        ->get();
+        $Category = Categorie::all();
+        $team = RegionTeam::with(['user','regions'])
+        ->where('status','active')
+        ->get();
+        $inspection = Inspection::with(
+             'car',
+            'car.brand',
+            'car.model',
+            'car.type',
+            'category',
+        )->get();
+
+        $activeInspections = Inspection::where('user_id', Auth::user()->id)
+            ->whereIn('status', ['in_progress', 'revision'])
+            ->exists(); // Menggunakan exists() untuk cek apakah ada data
+
+        return Inertia::render('FrontEnd/Inspection/Create/Index', [
+            'CarDetail' => $CarDetail,
+            'Category' => $Category,
+            'team' => $team,
+            'inspection' => $inspection,
+            'activeInspections' => $activeInspections,
+        ]);
+    }
+    
+    /**
+     * Store a newly created resource in storage.
+   
+    */
+    public function start($inspection)
+    {
+        try {  
+            // Dekripsi dan validasi
+            $id = Crypt::decrypt($inspection);
+            $inspection = Inspection::findOrFail($id);
+        // Authorization check
+             if ($inspection->user_id !== Auth::id() && !auth()->user()->hasRole('quality_control'))
+                {
+                    return redirect()->route('job.index')->with('error','Maaf sudah tidak ada akses untuk melanjutkan Inspeksi');
+                }
+            // Redirect jika pending_review
+                if ($inspection->status === 'pending_review') {
+                    $encryptID = Crypt::encrypt($inspection->id);
+                    return redirect()->route('inspections.review', ['id' => $encryptID]);
+                }
+
+            // Validasi status
+            $allowedStatuses = ['draft', 'in_progress', 'revision', 'pending'];
+            if (!in_array($inspection->status, $allowedStatuses)) {
+                return redirect()->route('job.index')
+                    ->with('error', 'Halaman inspeksi tidak bisa diakses karena status tidak valid.');
+            }
+
+            // Update status jika draft
+            if ($inspection->status === 'draft') {
+                $inspection->update(['status' => 'in_progress']);
+                $inspection->addLog('in_progress', 'Memulai Inspeksi');
+            }
+            // Update status jika pending
+            if ($inspection->status === 'pending') {
+                $inspection->update(['status' => 'in_progress']);
+                $inspection->addLog('in_progress', 'Memulai kembali Inspeksinya');
+            }
+
+            // Ambil semua AppMenu dengan relasi
+            $appMenus = AppMenu::with([
+                'menu_point' => function ($query) {
+                    $query->where('is_active', true)->orderBy('order');
+                },
+                'menu_point.inspection_point.component',
+                'menu_point.inspection_point' => function ($query) {
+                    $query->where('is_active', true);
+                }
+            ])
+            ->where('is_active', true)
+            ->where('category_id', $inspection->category_id)
+            ->orderBy('order')
+            ->get();
+
+            // Ambil semua damage points
+            $damagePoints = MenuPoint::with(['inspection_point', 'inspection_point.component','app_menu'])
+                ->where('is_active', true)
+                ->whereHas('app_menu', function ($query) use ($inspection) {
+                    $query->where('input_type', 'damage')
+                        ->where('is_active', true)
+                        ->where('category_id', $inspection->category_id);
+                })
+                ->orderBy('order')
+                ->get();
+
+            // Ambil semua inspection_point_id yang terkait
+            $inspectionPointIds = $appMenus->flatMap(function ($menu) {
+                return $menu->menu_point->pluck('inspection_point_id');
+            })->merge($damagePoints->pluck('inspection_point_id'))->unique();
+
+            // Ambil semua hasil inspeksi dan gambar
+            $existingResults = InspectionResult::where('inspection_id', $inspection->id)
+                ->whereIn('point_id', $inspectionPointIds)
+                ->get()
+                ->keyBy('point_id');
+
+            // $existingImages = InspectionImage::where('inspection_id', $inspection->id)
+            //     ->whereIn('point_id', $inspectionPointIds)
+            //     ->get()
+            //     ->groupBy('point_id');
+
+                    // Ambil semua gambar
+            $existingImages = InspectionImage::where('inspection_id', $inspection->id)
+                ->whereIn('point_id', $inspectionPointIds)
+                ->get();
+
+            // Compress images untuk web display
+            $compressor = new NativeImageCompressor();
+            
+           // Di function start(), ubah bagian ini:
+// Di Controller, perbaiki bagian optimizedImages:
+$optimizedImages = $existingImages->groupBy('point_id')->map(function ($images) use ($compressor) {
+    return $images->map(function ($image) use ($compressor) {
+        // Normalize image path - remove 'storage/' prefix jika ada
+        $rawPath = $image->image_path;
+        $cleanPath = ltrim($rawPath, '/');
+        $cleanPath = str_replace('storage/', '', $cleanPath);
+        
+        // Generate URLs - PASTIKAN tidak ada double storage
+        $baseUrl = Storage::url($cleanPath); // Akan menghasilkan "/storage/[path]"
+        $optimizedUrl = $compressor->compressForWeb($cleanPath, 50);
+        
+        return [
+            'id' => $image->id,
+            'image_path' => $cleanPath, // Path relatif tanpa "storage/"
+            'path' => $cleanPath,
+            'preview' => $baseUrl, // Single "/storage/[path]"
+            'public_url' => $baseUrl,
+            'original_url' => $baseUrl,
+            'optimized_url' => $optimizedUrl,
+            'file_name' => $image->file_name,
+            'file_size' => $image->file_size,
+            'created_at' => $image->created_at,
+        ];
+    });
+});
+// DD($optimizedImages->toArray()); // Debugging line   
+
+            $car = CarDetail::with(['brand', 'model', 'type'])
+                ->where('id', $inspection->car_id)
+                ->first();
+
+            //mengambil data id yang sudah di eccrypt
+            $inspectionID = Crypt::encrypt($inspection->id);
+            
+             $allInspections = Inspection::with(
+                    'car',
+                    'car.brand',
+                    'car.model',
+                    'car.type',
+                    'category',
+                )->get();
+
+            //mengambil data categori untuk menu 
+            $category = Categorie::find($inspection->category_id);
+            // Data untuk frontend
+            return Inertia::render('FrontEnd/Inspection/IndexLocal', [
+            // return Inertia::render('FrontEnd/Inspection/InspectionForm', [
+                'inspection' => $inspection->load(['car', 'user']),
+                'category' => $category,
+                'appMenus' => $appMenus,
+                'damagePoints' => $damagePoints,
+                'existingResults' => $existingResults,
+                'existingImages' => $optimizedImages,
+                'inspectionId' => $inspectionID,
+                'allInspections' => $allInspections,
+                'car' => $car,
+                'CarDetail' => CarDetail::with(['brand', 'model', 'type'])->get(),
+            ]);
+
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            abort(404, 'ID Inspeksi Tidak Valid');
+        }
+    }
+
+
+public function store(Request $request)
+{
+    if ($request->input('is_scheduled')) {
+        $scheduledAt = $request->input('scheduled_at_date') . ' ' . $request->input('scheduled_at_time');
+        $request->merge(['scheduled_at' => $scheduledAt]);
+    }
+
+    $validated = $request->validate([
+        'plate_number' => 'required|string|max:20',
+        'category_id' => 'required|exists:categories,id',
+        'is_scheduled' => 'required|boolean',
+        'scheduled_at' => 'nullable|date',
+        'inspector_id' => 'nullable',
+        'car_id' => 'nullable',
+        'car_name' => 'required_without:car_id|nullable|string|max:100',
+    ]);
+
+    $carId = $validated['car_id'] ?? null;
+
+    // 🔑 Generate random secure code (10 karakter alfanumerik)
+    $randomCode = Str::upper(Str::random(10));
+
+    $inspectionData = [
+        'user_id'       => $validated['inspector_id'],
+        'submitted_by'  => Auth::id(),
+        'submitted_at'  => now(),
+        'plate_number'  => $validated['plate_number'],
+        'category_id'   => $validated['category_id'],
+        'car_id'        => $carId,
+        'car_name'      => $validated['car_name'] ?? null,
+        'status'        => $validated['is_scheduled'] ? 'draft' : 'in_progress',
+        'code'          => $randomCode, // simpan ke DB
+    ];
+
+    if ($validated['is_scheduled']) {
+        $inspectionData['inspection_date'] = $validated['scheduled_at'];
+    } else {
+        $inspectionData['inspection_date'] = now();
+        $inspectionData['status'] = 'in_progress';
+    }
+
+    $inspection = Inspection::create($inspectionData);
+
+    
+    if ($validated['is_scheduled']) {
+        $inspection->addLog('created', 'membuat data inspection');
+        return redirect()->route('job.index')
+        ->with('success', 'Inspeksi berhasil dijadwalkan.');
+    } else {
+        $inspection->addLog('created', 'Membuat data Inspeksi');
+        $inspection->addLog('in_progress', 'Memulai Inspeksi');
+        $encryptedId = Crypt::encrypt($inspection->id);
+        return redirect()->route('inspections.start', ['inspection' => $encryptedId]);
+    }
+}
+
+    /**
+     * Display the specified resource.
+     */
+    public function show( $inspection)
+    {
+        $id = Crypt::decrypt($inspection);
+        $inspection = Inspection::find($id);
+        $inspection->load(['logs.user']); // load logs + user
+
+        return inertia('FrontEnd/Inspection/Log', [
+            'inspection' => $inspection
+        ]);
+    }
+
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(string $id)
+    {
+        //
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        //
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        //
+    }
+
+
+    public function saveResult(Request $request)
+    {
+        $validated = $request->validate([
+            'inspection_id' => 'required|exists:inspections,id',
+            'point_id' => 'required|exists:inspection_points,id',
+            'status' => 'nullable|string',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            // Kalau status & note dua-duanya kosong → hapus datanya
+            if (empty($validated['status']) && empty($validated['note'])) {
+                InspectionResult::where('inspection_id', $validated['inspection_id'])
+                    ->where('point_id', $validated['point_id'])
+                    ->delete();
+
+                return redirect()->back()->with('success', 'Data deleted successfully');
+            }
+
+            // Kalau masih ada isi status atau note → update/create
+            $result = InspectionResult::updateOrCreate(
+                [
+                    'inspection_id' => $validated['inspection_id'],
+                    'point_id' => $validated['point_id'],
+                ],
+                [
+                    'status' => $validated['status'],
+                    'note'   => $validated['note'],
+                ]
+            );
+
+            // Ambil point
+            $point = InspectionPoint::find($validated['point_id']);
+            $inspect = Inspection::find($validated['inspection_id']);
+
+            // Update field otomatis
+            if ($point) {
+                if ($point->name === "Warna") {
+                    $inspect->color = $validated['note'];
+                }
+                if ($point->name === "No Rangka") {
+                    $inspect->noka = $validated['note'];
+                }
+                if ($point->name === "No Mesin") {
+                    $inspect->nosin = $validated['note'];
+                }
+                if ($point->name === "Jarak Tempuh (KM)") {
+                    $inspect->km = $validated['note'];
+                }
+                $inspect->update();
+            }
+
+            return redirect()->back()->with('success', 'Data saved successfully');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save result: ' . $e->getMessage(),
+            ], 200);
+        }
+    }
+
+    public function updateConclusion(Request $request, Inspection $inspection)
+    {
+        $validated = $request->validate([
+            'flooded' => 'nullable|in:yes,no',
+            'collision' => 'nullable|in:yes,no',
+            'collision_severity' => 'nullable|in:light,heavy',
+            'conclusion_note' => 'nullable|string|max:1000',
+        ]);
+
+        // Pastikan settings adalah array
+        $settings = $inspection->settings ?? [];
+        
+        // Pastikan settings adalah array, bukan string
+        if (is_string($settings)) {
+            $settings = json_decode($settings, true) ?? [];
+        }
+
+        // Siapkan data untuk settings (tanpa conclusion_note)
+        $conclusionData = [
+            'flooded' => $validated['flooded'],
+            'collision' => $validated['collision'],
+            'collision_severity' => $validated['collision_severity'] ?? null,
+        ];
+
+        // Update settings
+        $settings['conclusion'] = $conclusionData;
+
+        // Update inspection
+        $updateData = [
+            'settings' => $settings,
+        ];
+
+        // Only update note if conclusion_note is provided
+        if (isset($validated['conclusion_note'])) {
+            $updateData['notes'] = $validated['conclusion_note'];
+        }
+
+        $inspection->update($updateData);
+
+        return back()->with('success', 'Kesimpulan diperbarui');
+    }
+    public function updateVehicleDetails(Request $request, Inspection $inspection)
+    {
+        // 1. Validasi data yang masuk, termasuk `car_id` sebagai opsional
+        $validated = $request->validate([
+            'plate_number' => 'required|string|max:20',
+            'car_id' => 'nullable',
+            'car_name' => 'nullable|string|max:100',
+        ]);
+            $carId = $validated['car_id'] ?? null;
+        // 2. Gunakan Route Model Binding untuk memperbarui data
+        //    Tidak perlu Inspection::find() lagi
+        $inspection->update([
+            'plate_number' => $validated['plate_number'],
+            'car_id' => $carId,
+            'car_name' => $validated['car_name'],
+        ]);
+
+        // 3. Kembalikan respons yang sesuai dengan Inertia.js
+        //    Redirect ke halaman sebelumnya dengan pesan flash
+        return redirect()->back()->with('success', 'Data kendaraan berhasil diperbarui.');
+    }
+
+    public function uploadImage(Request $request)
+    {
+        // 1. Validate the request for multiple files
+        $request->validate([
+            'point_id' => 'required|integer',
+            'inspection_id' => 'required|integer', 
+            'images' => 'required|array', // Make sure 'images' is an array
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048', // Validate each file in the array
+        ]);
+
+        $pointId = $request->input('point_id');
+        $inspectionId = $request->input('inspection_id');
+        $uploadedImages = [];
+
+        // 2. Loop through each uploaded file
+        foreach ($request->file('images') as $uploadedFile) {
+            // Generate a unique filename and destination path for each image
+            $filename = 'inspection-image-' . time() . '-' . uniqid() . '.' . $uploadedFile->getClientOriginalExtension();
+            $destinationPath = public_path('storage/inspection-image');
+
+            try {
+                // Move the file to the public storage directory
+                $uploadedFile->move($destinationPath, $filename);
+            } catch (\Exception $e) {
+                // Handle file move failure
+                Log::error('File upload failed: ' . $e->getMessage());
+                return response()->json(['message' => 'Failed to move image: ' . $e->getMessage()], 500);
+            }
+
+            // Create a path relative to the public directory for the database
+            $publicPathForDb = 'storage/inspection-image/' . $filename;
+            
+            // 3. Save the image information to the database
+            $image = InspectionImage::create([
+                'inspection_id' => $inspectionId,
+                'point_id' => $pointId,
+                'image_path' => $publicPathForDb,
+            ]);
+            
+            // Collect data for the response
+            $uploadedImages[] = [
+                'path' => $publicPathForDb,
+                'public_url' => asset($publicPathForDb),
+                'image_id' => $image->id,
+            ];
+        }
+
+        // 4. Return a successful JSON response with all uploaded image data
+        return response()->json([
+            'message' => 'Images uploaded successfully.',
+            'images' => $uploadedImages,
+        ]);
+    }
+
+    /**
+     * Handle the deletion of an image.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteImage(Request $request)
+    {
+        $request->validate([
+            'image_id' => 'required_without:image_path',
+            'image_path' => 'required_without:image_id',
+        ]);
+
+        $image = null;
+        if ($request->has('image_id')) {
+            $image = InspectionImage::find($request->image_id);
+        } elseif ($request->has('image_path')) {
+            $image = InspectionImage::where('image_path', $request->image_path)->first();
+        }
+
+        if (!$image) {
+            return response()->json(['message' => 'Image not found.'], 404);
+        }
+
+        // Delete file from storage
+        $path = public_path($image->image_path);
+        if (file_exists($path)) {
+            unlink($path);
+        }
+
+        // Delete record from database
+        $image->delete();
+
+        return response()->json(['message' => 'Image deleted successfully.']);
+    }
+
+
+public function deleteResultImage(Request $request)
+{
+    $request->validate([
+        'inspection_id' => 'required|exists:inspections,id',
+        'point_id' => 'required|exists:inspection_points,id',
+    ]);
+
+    // 1. Hapus hasil (result) jika ada
+    $result = InspectionResult::where('inspection_id', $request->inspection_id)
+        ->where('point_id', $request->point_id)
+        ->first();
+
+    if ($result) {
+        $result->delete();
+    }
+
+    // 2. Ambil semua gambar terkait
+    $images = InspectionImage::where('inspection_id', $request->inspection_id)
+        ->where('point_id', $request->point_id)
+        ->get();
+
+    foreach ($images as $image) {
+        if ($image->image_path) {
+            $fullPathToDelete = public_path($image->image_path);
+
+            if (file_exists($fullPathToDelete)) {
+                try {
+                    unlink($fullPathToDelete); // hapus file fisik
+                } catch (\Exception $e) {
+                    Log::error("Gagal hapus file: {$fullPathToDelete}. Error: {$e->getMessage()}");
+                }
+            } else {
+                Log::warning("File tidak ditemukan: {$fullPathToDelete}, skip hapus.");
+            }
+        }
+
+        $image->delete(); // hapus record
+    }
+
+    // 🔑 Kembalikan response biar inertia tahu sukses
+    return back()->with('success', 'Data berhasil dihapus.');
+}
+
+
+    public function finalSubmit(Request $request, $id)
+    {
+        // Cari inspeksi berdasarkan ID
+        $inspection = Inspection::findOrFail($id);
+
+        // Update status inspeksi
+        $inspection->update([
+            'status' => 'pending_review',
+        ]);
+        $inspection->addLog('finish', 'Menyelesaikan Inspeksi');
+
+        $encryptId = Crypt::encrypt($inspection->id);
+        // Redirect ke halaman review
+        return redirect()->route('inspections.review', ['id' => $encryptId])
+            ->with('success', 'Inspeksi berhasil dikirim untuk review');
+    }
+
+public function finalSubmitAll(Request $request, $id)
+{
+    try {
+        DB::beginTransaction();
+
+        $inspection = Inspection::findOrFail($id);
+        
+        // 1. Validasi data yang diperlukan
+        $request->validate([
+            'results' => 'sometimes|array',
+            'conclusion' => 'sometimes|array',
+        ]);
+
+        // 3. Simpan semua results (TANPA handle images)
+        if ($request->has('results') && !empty($request->results)) {
+            $inspectionUpdates = [];
+            foreach ($request->results as $pointId => $resultData) {
+                // Convert array status to comma-separated string
+                $statusValue = $resultData['status'] ?? null;
+                if (is_array($statusValue)) {
+                    $statusValue = implode(',', $statusValue);
+                }
+
+                // Hanya simpan jika ada data (status atau note)
+                if (!empty($statusValue) || !empty(trim($resultData['note'] ?? ''))) {
+                    InspectionResult::updateOrCreate(
+                        [
+                            'inspection_id' => $inspection->id,
+                            'point_id' => $pointId
+                        ],
+                        [
+                            'status' => $statusValue,
+                            'note' => !empty(trim($resultData['note'] ?? '')) ? $resultData['note'] : null,
+                            'updated_at' => now(),
+                        ]
+                    );
+
+                    // Kumpulkan data untuk update inspection
+                 $this->collectInspectionUpdates($inspectionUpdates, $pointId, $resultData);
+
+                } else {
+                    // Hapus record jika tidak ada data
+                    InspectionResult::where([
+                        'inspection_id' => $inspection->id,
+                        'point_id' => $pointId
+                    ])->delete();
+                }
+            }
+             // ✅ Lakukan bulk update inspection sekali saja
+            if (!empty($inspectionUpdates)) {
+                $this->applyInspectionUpdates($inspection, $inspectionUpdates);
+            }
+        }
+
+        // 4. Simpan conclusion data
+        if ($request->has('conclusion')) {
+            $conclusionData = $request->conclusion;
+            
+            // Update inspection notes
+            $inspection->update([
+                'notes' => $conclusionData['notes'] ?? null,
+            ]);
+
+            // Update conclusion settings
+            $settings = $inspection->settings ?? [];
+            $settings['conclusion'] = [
+                'flooded' => $conclusionData['flooded'] ?? null,
+                'collision' => $conclusionData['collision'] ?? null,
+                'collision_severity' => $conclusionData['collision_severity'] ?? null,
+            ];
+            
+            $inspection->update([
+                'settings' => $settings,
+            ]);
+        }
+
+        // 5. Update inspection status dan timestamp
+        $inspection->update([
+            'status' => 'pending_review',
+            'completed_at' => now(),
+        ]);
+
+
+        // 6. Add log
+        $inspection->addLog('finish', 'Menyelesaikan Inspeksi');
+
+        DB::commit();
+
+        $encryptId = Crypt::encrypt($inspection->id);
+        
+        // Redirect ke halaman review
+        return redirect()->route('inspections.review', ['id' => $encryptId])
+            ->with('success', 'Inspeksi berhasil dikirim untuk review');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        Log::error('Error final submit inspection: ' . $e->getMessage(), [
+            'inspection_id' => $id,
+            'request_data' => $request->all()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Terjadi kesalahan saat menyimpan data inspeksi: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+private function collectInspectionUpdates(&$updates, $pointId, $resultData)
+{
+    $point = InspectionPoint::find($pointId);
+    
+    if (!$point) {
+        return;
+    }
+
+    $note = trim($resultData['note'] ?? '');
+    
+    $fieldMapping = [
+        "Warna" => 'color',
+        "No Rangka" => 'noka',
+        "No Mesin" => 'nosin', 
+        "Jarak Tempuh (KM)" => 'km',
+    ];
+    
+    if (isset($fieldMapping[$point->name])) {
+        $updates[$fieldMapping[$point->name]] = $note;
+    }
+}
+
+// Method untuk apply semua updates
+private function applyInspectionUpdates(Inspection $inspection, $updates)
+{
+    foreach ($updates as $field => $value) {
+        $inspection->$field = $value;
+    }
+    $inspection->save();
+}
+
+    public function review($id)
+    {
+        $id = Crypt::decrypt($id);
+        $inspection = Inspection::with([
+            'car',
+            'car.brand',
+            'car.model',
+            'car.type',
+            'category',
+            'customer',
+            'user',
+        ])->findOrFail($id);
+
+
+        $user = Auth::user();
+        $roles = $user->getRoleNames()->toArray(); // ambil semua role user
+
+        $restrictedStatuses = ['draft', 'in_progress', 'pending', 'revision'];
+
+        if (in_array($inspection->status, $restrictedStatuses) && !in_array('Admin', $roles) && !in_array('coordinator', $roles) && !in_array('admin_plann', $roles)) {
+            return redirect()->route('job.index');
+        }
+
+        $transaction = Transaction::where('inspection_id' , $inspection->id)->first();
+
+        $encryptedIds = Crypt::encrypt($inspection->id);
+
+        return inertia('FrontEnd/Inspection/Review', [
+            'inspection' => $inspection,
+            'transaction' => $transaction,
+            'encryptedIds' => $encryptedIds,
+        ]);
+    }
+
+    public function reviewPdf($id)
+    {
+        $id = Crypt::decrypt($id);
+        $inspection = Inspection::with([
+            'car',
+            'car.brand',
+            'car.model',
+            'car.type',
+            'category',
+            'repairEstimations' => function($q) {
+                $q->orderBy('urgency', 'desc')
+                  ->orderBy('estimated_cost', 'desc');
+            },
+            'repairEstimations.creator'
+        ])->findOrFail($id);
+
+        // cek status
+        if (in_array($inspection->status, [
+            'draft', 
+            'in_progress', 
+            'pending', 
+            'revision',        
+            'rejected',
+            'completed',
+            'cancelled'
+            ])
+             && !auth()->user()->hasAnyRole(['Admin', 'coordinator'])
+            ) {
+            return redirect()->route('job.index')->with('error','Tidak bisa di buka status belum selesai ');
+        }
+
+        $menu_points = MenuPoint::with([
+            'app_menu',
+            'inspection_point',
+            'inspection_point.component',
+            'inspection_point.results' => function ($q) use ($inspection) {
+                $q->where('inspection_id', $inspection->id);
+            },
+            'inspection_point.images' => function ($q) use ($inspection) {
+                $q->where('inspection_id', $inspection->id)
+                ->orderBy('created_at', 'asc');
+            }
+        ])
+        ->whereHas('app_menu', function ($query) use ($inspection) {
+            $query->where('category_id', $inspection->category_id);
+        })
+        ->get();
+
+        //Filter untuk ambil data lain-lain
+        $carOtherNames = [
+            'Jarak Tempuh (KM)',
+            'Pajak Tahunan',
+            'Pajak 5 Tahunan',
+            'PKB',
+            'Kepemilikan',
+            'BS/BM',
+        ];
+
+        $dataCarOther = $menu_points
+            ->filter(fn ($item) =>
+                $item->inspection_point &&
+                in_array($item->inspection_point->name, $carOtherNames)
+            )
+            ->mapWithKeys(function ($item) {
+                $result = $item->inspection_point->results->first();
+
+                return [
+                    Str::camel(str_replace(['/', ' '], '_', $item->inspection_point->name)) => [
+                        'status' => $result->status ?? null,
+                        'note'   => $result->note ?? null,
+                    ]
+                ];
+            });
+
+// dd($dataCarOther);
+        $coverImage = InspectionImage::where('inspection_id', $inspection->id)
+            ->whereHas('point', function ($q) {
+                $q->where('name', 'Depan Kanan');
+            })->first();
+
+        if (!$coverImage) {
+            $coverImage = InspectionImage::where('inspection_id', $inspection->id)->first();
+        }
+
+        $encryptedIds = Crypt::encrypt($inspection->id);
+
+        // Hitung total estimasi perbaikan
+        $totalRepairCost = $inspection->repairEstimations->sum('estimated_cost');
+
+        return Inertia::render('FrontEnd/Inspection/Report/ReviewPDF', [
+            'inspection' => $inspection,
+            'menu_points' => $menu_points,
+            'coverImage' => $coverImage,
+            'encryptedIds' => $encryptedIds,
+            'repairEstimations' => $inspection->repairEstimations,
+            'totalRepairCost' => $totalRepairCost,
+            'dataCarOther' => $dataCarOther,
+            // Kirim informasi role user
+            'user_roles' => auth()->user()->roles->pluck('name')->toArray()
+        ]);
+
+        // $repairEstimations = $inspection->repairEstimations;
+        // $user_roles = auth()->user()->roles->pluck('name')->toArray();
+        // return view('inspection.report.mPDF2', compact('inspection', 'menu_points', 'coverImage','repairEstimations','totalRepairCost','encryptedIds','user_roles','dataCarOther')); 
+   
+    }
+
+    public function detail($id)
+    {
+        $id = Crypt::decrypt($id);
+        $inspection = Inspection::with([
+            'car',
+            'car.brand',
+            'car.model',
+            'car.type',
+            'category',
+        ])->findOrFail($id);
+
+        $menu_points = MenuPoint::with([
+            'app_menu',
+            'inspection_point',
+            'inspection_point.component',
+            'inspection_point.results' => function ($q) use ($inspection) {
+                $q->where('inspection_id', $inspection->id);
+            },
+            'inspection_point.images' => function ($q) use ($inspection) {
+                $q->where('inspection_id', $inspection->id)
+                ->orderBy('created_at', 'asc');
+            }
+        ])
+        ->whereHas('app_menu', function ($query) use ($inspection) {
+            $query->where('category_id', $inspection->category_id);
+        })
+        ->get();
+
+        $coverImage = InspectionImage::where('inspection_id', $inspection->id)
+            ->whereHas('point', function ($q) {
+                $q->where('name', 'Depan Kanan');
+            })->first();
+
+        if (!$coverImage) {
+            $coverImage = InspectionImage::where('inspection_id', $inspection->id)->first();
+        }
+
+        return response()->json([
+            'inspection'   => $inspection,
+            'menu_points'  => $menu_points,
+            'coverImage'   => $coverImage,
+        ]);
+    }
+
+
+    public function downloadPdf($id)
+    {
+        try {
+            $id = Crypt::decrypt($id);
+            $inspection = Inspection::with([
+                'car',
+                'car.brand',
+                'car.model',
+                'car.type',
+                'category',
+            ])->findOrFail($id);
+        
+            // cek status
+            if (in_array($inspection->status, [
+                'draft', 
+                'in_progress', 
+                'pending', 
+                'revision',        
+                'rejected',
+                'revision',
+                'completed',
+                'cancelled'
+            ])) {
+                return redirect()->route('job.index')->with('error', 'Status inspection tidak valid untuk download.');
+            }
+            
+                // $pdfGenerator = new InspectionPdfGenerator();
+                // $filePath = $pdfGenerator->generate($inspection);
+
+        $menu_points = MenuPoint::with([
+                'app_menu',
+                'inspection_point',
+                'inspection_point.component',
+                'inspection_point.results' => function ($q) use ($inspection) {
+                    $q->where('inspection_id', $inspection->id);
+                },
+                'inspection_point.images' => function ($q) use ($inspection) {
+                    $q->where('inspection_id', $inspection->id)
+                    ->orderBy('created_at', 'asc');
+                }
+            ])
+            ->whereHas('app_menu', function ($query) use ($inspection) {
+                $query->where('category_id', $inspection->category_id);
+            })
+            ->get();
+
+            $coverImage = InspectionImage::where('inspection_id', $inspection->id)
+                ->whereHas('point', function ($q) {
+                    $q->where('name', 'Depan Kanan');
+                })->first();
+
+            // Jika tidak ada cover image, coba ambil gambar pertama
+            if (!$coverImage) {
+                $coverImage = InspectionImage::where('inspection_id', $inspection->id)->first();
+            }
+
+            $pdf = Pdf::loadView('inspection.report.domPDF1', [
+                'inspection' => $inspection,
+                'menu_points' => $menu_points,
+                'coverImage' => $coverImage,
+            ])->setPaper('a4', 'portrait');
+
+            // Generate nama file yang unik
+            $filename = 'inspection_report_' . $inspection->plate_number . '_' . time() . '.pdf';
+            $directory = 'inspection-reports/' . date('Y/m');
+            
+            // Buat directory jika belum ada
+            if (!Storage::disk('public')->exists($directory)) {
+                Storage::disk('public')->makeDirectory($directory, 0755, true);
+            }
+            
+            $filePath = $directory . '/' . $filename;
+            
+            // Simpan file ke storage
+            Storage::disk('public')->put($filePath, $pdf->output());
+            
+            // Update inspection status dan file path
+            $inspection->update([
+                'status' => 'approved',
+                'file' => $filePath,
+                'approved_at' => now(),
+            ]);
+            $inspection->addLog('approved', 'Menyetujui Hasil Inspeksi dan Report di buat Otomatis');
+
+            // Return download response
+            // return $pdf->download('inspection_report_'.$inspection->car_name.'_('. $inspection->plate_number.').pdf');
+            $encryptId = Crypt::encrypt($inspection->id);
+
+                // Redirect ke halaman review
+        return redirect()->route('inspections.review', ['id' => $encryptId])
+            ->with('success', 'Inspeksi sudah di setujui dan report sedang di buat');
+
+        } catch (\Exception $e) {
+            Log::error('Error generating PDF: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal generate laporan PDF: ' . $e->getMessage());
+        }
+    }
+
+    public function approvePdf($id)
+    {
+        try {
+            $id = Crypt::decrypt($id);
+        
+             $inspection = Inspection::with([
+                'car',
+                'car.brand',
+                'car.model',
+                'car.type',
+                'category',
+                'repairEstimations' => function($q) {
+                    $q->orderBy('urgency', 'desc')
+                    ->orderBy('estimated_cost', 'desc');
+                },
+                'repairEstimations.creator'
+            ])->findOrFail($id);
+            
+             $generator = new InspectionmPdfGenerator();
+                if (empty($inspection->file) || !file_exists(public_path($inspection->file))) {
+                    $generator->generate($inspection);  
+                }
+            
+            // Update inspection status dan file path
+            $inspection->update([
+                'status' => 'approved',
+                'approved_at' => now(),
+            ]);
+            $inspection->addLog('approved', 'Menyetujui Hasil Inspeksi');
+            
+            $encryptId = Crypt::encrypt($inspection->id);
+                // Redirect ke halaman review
+            return redirect()->route('inspections.review', ['id' => $encryptId])
+            ->with('success', 'Inspeksi sudah di setujui dan report sedang di buat');
+                
+                
+        } catch (\Exception $e) {
+            Log::error('Error generating PDF: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal generate laporan PDF: ' . $e->getMessage());
+        }
+    }
+
+    public function sendEmail($id, Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        // Decrypt IDs dan proses pengiriman email
+        $inspection = Inspection::find(decrypt($id));
+        
+        $inspection->addLog('email', 'Report sudah di kirim via email');
+        // Kirim email disini
+        Mail::to($request->email)->send(new InspectionReportMail($inspection));
+
+        return response()->json(['message' => 'Email berhasil dikirim']);
+    }
+
+    public function whatsapp($id)
+    {
+        $id = Crypt::decrypt($id);
+        $inspection = Inspection::with(
+            'car', 
+            'car.brand',
+            'car.model',
+            'car.type',
+            'customer',
+            )->findOrFail($id);
+
+       // cek status
+        if (in_array($inspection->status, [
+                'draft', 
+                'in_progress', 
+                'pending', 
+                'pending_review', 
+                'revision',        
+                'rejected',
+                'revision',
+                'cancelled'
+        ])) {
+            $encryptId = Crypt::encrypt($inspection->id);
+               // Generate URL download
+            return redirect()->route('inspections.review.pdf', ['id' => $encryptId]);
+        }
+
+        $transaction = Transaction::where('inspection_id' , $inspection->id)->first();
+
+          // Konversi notes HTML → WhatsApp text
+        $notesForWhatsApp = HtmlToWhatsApp::convert($inspection->notes ?? '');
+
+        $IdInspection = Crypt::encrypt($inspection->id);
+
+        return Inertia::render('FrontEnd/Inspection/SendReport/Whatsapp', [
+            'inspection' => $inspection,
+            'IdInspection' => $IdInspection,
+            'transaction' => $transaction,
+            'notesForWhatsApp' => $notesForWhatsApp,
+        ]);
+    }
+
+    public function send($inspection)
+    {
+
+         $id = Crypt::decrypt($inspection);
+        $inspection = Inspection::with(
+            'car', 
+            'car.brand',
+            'car.model',
+            'car.type',
+            'customer',
+            )->findOrFail($id);
+        // ambil no HP customer dari relasi
+        $phone = optional($inspection->customer)->phone;
+        if (!$phone) {
+            return back()->with('error', 'Nomor WhatsApp tidak tersedia.');
+        }
+
+        // format nomor (08xxx → 628xxx)
+        $formattedPhone = preg_replace('/^0/', '62', $phone);
+
+        // konversi catatan HTML → WhatsApp
+        $notes = $inspection->notes ? HtmlToWhatsApp::convert($inspection->notes) : '';
+
+        // buat pesan
+        $message = "*HASIL INSPEKSI KENDARAAN*\n\n"
+            ."*ID Inspeksi*: {$inspection->code}\n"
+            ."*Plat Nomor*: {$inspection->plate_number}\n"
+            ."*Kendaraan*: {$inspection->car_name}\n\n"
+            ."*HASIL:*\n{$notes}\n\n"
+            ."Terima kasih telah menggunakan layanan kami.\n\n"
+            ."_Catatan: Mohon gunakan ID Inspeksi untuk mengakses file, sebagai upaya kami melindungi data kendaraan._";
+            
+
+        // simpan log (opsional kalau ada tabel log)
+
+        $inspection->addLog('sen whatsapp', 'Sudah mengirim Report lewat Whatsapp');
+        // redirect langsung ke WhatsApp
+        $whatsappUrl = "https://wa.me/{$formattedPhone}?text=" . urlencode($message);
+        return redirect()->away($whatsappUrl);
+    }
+
+    public function downloadApprovePdf($id)
+    {
+        try {
+        $id = Crypt::decrypt($id);
+        $inspection = Inspection::findOrFail($id);
+        
+        // Cek jika file exists
+        if (!$inspection->file || !Storage::disk('public')->exists($inspection->file)) {
+            return redirect()->back()->with('error', 'File laporan tidak ditemukan.');
+        }
+        
+        $filePath = storage_path('app/public/' . $inspection->file);
+        
+        $inspection->addLog('download', 'Mendownload Laporan PDF');
+            // Kirim file untuk diunduh
+        return response()->download($filePath, 'laporan-inspeksi-' . $inspection->plate_number . '.pdf');
+        
+        } catch (\Exception $e) {
+            return back()->with('error', 'Link tidak valid atau terjadi kesalahan.');
+        }
+    }
+
+    public function revisi($id, Request $request)
+    {
+        try {
+            $id = Crypt::decrypt($id);
+            $inspection = Inspection::findOrFail($id);
+            
+            // Update status dan simpan alasan
+            $inspection->update([
+                'status' => 'revision',
+            ]);
+
+            $inspection->addLog('revision', 'Merevisi Inspeksi ');
+            
+            $inspectionID = Crypt::encrypt($inspection->id);
+            return redirect()->route('inspections.start', ['inspection' => $inspectionID])->with('success', 'Inspeksi berhasil dibatalkan');
+            
+        } catch (DecryptException $e) {
+            abort(404);
+        }
+    }
+    public function pending($id, Request $request)
+    {
+        try {
+            $id = Crypt::decrypt($id);
+            $inspection = Inspection::findOrFail($id);
+            
+            // Update status dan simpan alasan
+            $inspection->update([
+                'status' => 'pending',
+            ]);
+
+            $inspection->addLog('pending', 'Menunda sementara Inspeksinya ');
+            
+            $inspectionID = Crypt::encrypt($inspection->id);
+            return redirect()->route('job.index')->with('success', 'Inspeksi berhasil tunda sementara');
+            
+        } catch (DecryptException $e) {
+            abort(404);
+        }
+    }
+    public function cancel($inspection, Request $request)
+    {
+        try {
+            $id = Crypt::decrypt($inspection);
+            $inspection = Inspection::findOrFail($id);
+            
+            // Update status dan simpan alasan
+            $inspection->update([
+                'status' => 'cancelled',
+                'notes' => $request->reason
+            ]);
+
+             $inspection->addLog('cancelled',description:  'Membatalkan Inspeksi');
+            
+            return redirect()->back()->with('success', 'Inspeksi berhasil dibatalkan');
+            
+        } catch (DecryptException $e) {
+            abort(404);
+        }
+    }
+
+    // =======================Kode percobaan awalna======================
+    public function download($id)
+    {
+        try {
+            $id = Crypt::decrypt($id);
+            $inspection = Inspection::with([
+                'car',
+                'car.brand',
+                'car.model',
+                'car.type',
+                'category',
+            ])->findOrFail($id);
+
+              // Ambil data menu points & images
+            $menu_points = MenuPoint::with([
+                'app_menu',
+                'inspection_point',
+                'inspection_point.component',
+                'inspection_point.results' => function ($q) use ($inspection) {
+                    $q->where('inspection_id', $inspection->id);
+                },
+                'inspection_point.images' => function ($q) use ($inspection) {
+                    $q->where('inspection_id', $inspection->id)
+                      ->orderBy('created_at', 'asc');
+                }
+            ])
+            ->whereHas('app_menu', function ($query) use ($inspection) {
+                $query->where('category_id', $inspection->category_id);
+            })
+            ->get();
+
+            // Ambil cover image (Depan Kanan), jika tidak ada pakai image pertama
+            $coverImage = InspectionImage::where('inspection_id', $inspection->id)
+                ->whereHas('point', function ($q) {
+                    $q->where('name', 'Depan Kanan');
+                })
+                ->first();
+
+            if (!$coverImage) {
+                $coverImage = InspectionImage::where('inspection_id', $inspection->id)->first();
+            }
+
+            // Jika inspection->code kosong maka generate random 6-digit code dan simpan
+            if (empty($inspection->code)) {
+                $randomCode = mt_rand(100000, 999999); // 6 digit
+                $inspection->update(['code' => (string) $randomCode]);
+                // reload variable
+                $inspection->refresh();
+            }
+
+               // Init mPDF
+            $mpdf = new Mpdf([
+                'format' => 'A4',
+                'margin_left'   => 10,
+                'margin_right'  => 10,
+                'margin_top'    => 15,
+                'margin_bottom' => 15,
+                'default_font' => 'dejavusans',
+                'default_font_size' => 15
+            ]);
+
+            // Proteksi PDF pakai kode inspection
+            $mpdf->SetProtection([], (string) $inspection->code, null);
+
+              // Render view blade
+            $html = view('inspection.report.mPDF1', [
+                'inspection' => $inspection,
+                'menu_points' => $menu_points,
+                'coverImage' => $coverImage,
+            ])->render();
+
+            $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
+            
+            $filename = 'inspection_report_' . $inspection->plate_number . '_' . time() . '.pdf';
+            $directory = 'inspection-reports/' . date('Y/m');
+
+            if (!Storage::disk('public')->exists($directory)) {
+                Storage::disk('public')->makeDirectory($directory, 0755, true);
+            }
+
+            $filePath = $directory . '/' . $filename;
+
+            // Simpan file PDF ke storage
+            Storage::disk('public')->put($filePath, $mpdf->Output('', 'S')); // 'S' = string
+
+            // $generator = new InspectionmPdfGenerator();
+            // if (empty($inspection->file) || !file_exists(public_path($inspection->file))) {
+            //     $generator->generate($inspection);
+            // }
+
+             return redirect()->back()->with('success','pdf sudah tergenerate ');
+                
+        } catch (\Exception $e) {
+            Log::error('Error generating PDF: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal generate laporan PDF: ' . $e->getMessage());
+        }
+    }
+}

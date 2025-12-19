@@ -13,11 +13,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->withPersonalTeam()->create();
+        // User::factory(10)->create();
 
-        User::factory()->withPersonalTeam()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // User::factory()->create([
+        //     'name' => 'Test User',
+        //     'email' => 'test@example.com',
+        // ]);
+
+         $this->call([
+             \Database\Seeders\Brands\BrandSeeder::class,
+
+            RolePermissionSeeder::class,
+            MasterDataSeeder::class, // Tambahkan ini
+            AdminUserSeeder::class,
+            
+            // BrandSeeder::class,
+            // CarModelSeeder::class,
+            // CarTypeSeeder::class,
+            // CarDetailSeeder::class,
         ]);
     }
 }

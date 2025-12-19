@@ -2,25 +2,28 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Team\Region;
+use App\Models\Team\RegionTeam;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
-use Laravel\Jetstream\HasTeams;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
     use HasProfilePhoto;
-    use HasTeams;
     use Notifiable;
     use TwoFactorAuthenticatable;
+
+    use HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -29,8 +32,10 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'numberPhone',
         'email',
         'password',
+        'is_active',
     ];
 
     /**
@@ -65,5 +70,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function regionTeams()
+    {
+        return $this->hasMany(RegionTeam::class);
+    }
+
+    public function regions()
+    {
+        return $this->belongsToMany(Region::class, 'region_teams')
+            ->withPivot('role', 'status')
+            ->withTimestamps();
     }
 }
