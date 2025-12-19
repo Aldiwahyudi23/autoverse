@@ -878,21 +878,21 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
         // Hitung total estimasi perbaikan
         $totalRepairCost = $inspection->repairEstimations->sum('estimated_cost');
 
-        return Inertia::render('FrontEnd/Inspection/Report/ReviewPDF', [
-            'inspection' => $inspection,
-            'menu_points' => $menu_points,
-            'coverImage' => $coverImage,
-            'encryptedIds' => $encryptedIds,
-            'repairEstimations' => $inspection->repairEstimations,
-            'totalRepairCost' => $totalRepairCost,
-            'dataCarOther' => $dataCarOther,
-            // Kirim informasi role user
-            'user_roles' => auth()->user()->roles->pluck('name')->toArray()
-        ]);
+        // return Inertia::render('FrontEnd/Inspection/Report/ReviewPDF', [
+        //     'inspection' => $inspection,
+        //     'menu_points' => $menu_points,
+        //     'coverImage' => $coverImage,
+        //     'encryptedIds' => $encryptedIds,
+        //     'repairEstimations' => $inspection->repairEstimations,
+        //     'totalRepairCost' => $totalRepairCost,
+        //     'dataCarOther' => $dataCarOther,
+        //     // Kirim informasi role user
+        //     'user_roles' => auth()->user()->roles->pluck('name')->toArray()
+        // ]);
 
-        // $repairEstimations = $inspection->repairEstimations;
-        // $user_roles = auth()->user()->roles->pluck('name')->toArray();
-        // return view('inspection.report.mPDF2', compact('inspection', 'menu_points', 'coverImage','repairEstimations','totalRepairCost','encryptedIds','user_roles','dataCarOther')); 
+        $repairEstimations = $inspection->repairEstimations;
+        $user_roles = auth()->user()->roles->pluck('name')->toArray();
+        return view('inspection.report.mPDF2', compact('inspection', 'menu_points', 'coverImage','repairEstimations','totalRepairCost','encryptedIds','user_roles','dataCarOther')); 
    
     }
 

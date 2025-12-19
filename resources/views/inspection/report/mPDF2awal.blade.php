@@ -147,21 +147,6 @@
             });
     // Definisikan komponen-komponen yang akan digabung ke Interior
     $interiorSubComponents = ['Kelistrikan', 'AC', 'Fitur'];
-
-    // Definisikan urutan komponen untuk sorting dalam Interior yang digabung
-    $componentOrder = [
-        'Interior' => 1,
-        'Kelistrikan' => 2,
-        'AC' => 3,
-        'Fitur' => 4,
-        'Interior (Validasi Banjir)' => 5,
-    ];
-
-    // Definisikan urutan komponen untuk sorting dalam Eksterior yang digabung
-    $exteriorComponentOrder = [
-        'Eksterior' => 1,
-        'Rangka (Validasi Tabrak)' => 2,
-    ];
     
     // Array untuk menampung data yang sudah diregroup
     $regroupedData = [];
@@ -260,25 +245,9 @@
     
     // Urutkan ulang semua points dalam setiap komponen (setelah merge)
     foreach ($regroupedData as $compName => $compPoints) {
-        if ($compName === 'Interior') {
-            // Untuk Interior yang sudah digabung, urutkan berdasarkan component order terlebih dahulu
-            $regroupedData[$compName] = $compPoints->sortBy(function ($point) use ($componentOrder) {
-                $componentName = optional($point->inspection_point->component)->name ?? '';
-                $compOrder = $componentOrder[$componentName] ?? 999;
-                return $compOrder * 1000 + ($point->order ?? $point->created_at);
-            })->values(); // Reset keys
-        } elseif ($compName === 'Eksterior') {
-            // Untuk Eksterior yang sudah digabung, urutkan berdasarkan exterior component order terlebih dahulu
-            $regroupedData[$compName] = $compPoints->sortBy(function ($point) use ($exteriorComponentOrder) {
-                $componentName = optional($point->inspection_point->component)->name ?? '';
-                $compOrder = $exteriorComponentOrder[$componentName] ?? 999;
-                return $compOrder * 1000 + ($point->order ?? $point->created_at);
-            })->values(); // Reset keys
-        } else {
-            $regroupedData[$compName] = $compPoints->sortBy(function ($point) {
-                return $point->order ?? $point->created_at;
-            })->values(); // Reset keys
-        }
+        $regroupedData[$compName] = $compPoints->sortBy(function ($point) {
+            return $point->order ?? $point->created_at;
+        })->values(); // Reset keys
     }
     
     // Simpan data yang sudah diregroup ke variabel baru untuk loop utama
