@@ -43,8 +43,8 @@ export default defineConfig({
                 globPatterns: ['**/*.{js,css,html,ico,png,svg}']
             },
             manifest: {
-                 name: 'cek Mobil',
-                short_name: 'Inspek Mobil',
+                 name: 'autoVerse',
+                short_name: 'autoVerse',
                 description: 'Aplikasi Inspek bagi karyawan tersaakiti',
                 theme_color: THEME_COLOR, // Gunakan variabel yang sama
                 background_color: BACKGROUND_COLOR,

@@ -14,8 +14,7 @@ class MasterDataSeeder extends Seeder
     {
             // Create default categories
         $categories = [
-            ['name' => 'Mo', 'order' => 1],
-            ['name' => 'Aldi Wahyudi', 'order' => 2],
+            ['name' => 'AutoVerse', 'order' => 1],
         ];
 
         $categoryMap = [];
@@ -27,7 +26,7 @@ class MasterDataSeeder extends Seeder
         // ==================================
         // Create AppMenu khusus kategori "Mo"
         // ==================================
-        if (isset($categoryMap['Auto'])) {
+        if (isset($categoryMap['AutoVerse'])) {
             $appMenus = [
                 ['name' => 'Dokumen', 'input_type' => 'menu', 'order' => 1],
                 ['name' => 'Foto', 'input_type' => 'menu', 'order' => 2],
@@ -35,13 +34,14 @@ class MasterDataSeeder extends Seeder
                 ['name' => 'Samping Kiri', 'input_type' => 'menu', 'order' => 4],
                 ['name' => 'Belakang', 'input_type' => 'menu', 'order' => 5],
                 ['name' => 'Samping kanan', 'input_type' => 'menu', 'order' => 6],
-                ['name' => 'Damage', 'input_type' => 'damage', 'order' => 7],
+                ['name' => 'Interior', 'input_type' => 'menu', 'order' => 7],
+                ['name' => 'Lainnya', 'input_type' => 'damage', 'order' => 8],
             ];
 
             foreach ($appMenus as $menu) {
                 \App\Models\DataInspection\AppMenu::firstOrCreate(
                     [
-                        'category_id' => $categoryMap['Auto'],
+                        'category_id' => $categoryMap['AutoVerse'],
                         'name' => $menu['name'],
                     ],
                     [
