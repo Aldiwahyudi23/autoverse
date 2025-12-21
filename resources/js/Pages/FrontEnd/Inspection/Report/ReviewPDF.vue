@@ -101,10 +101,10 @@
     <!-- Kolom Kiri: Status Banjir -->
     <td style="width: 50%; padding: 6px; vertical-align: top;">
       <div style="text-align: center;">
-        <img v-if="inspection.settings.flooded === 'yes'" src="/images/icons/banjir.png" alt="Banjir" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
+        <img v-if="inspection.settings.conclusion.flooded === 'yes'" src="/images/icons/banjir.png" alt="Banjir" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
         <img v-else src="/images/icons/aman.png" alt="Aman" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
         
-        <p v-if="inspection.settings.flooded === 'yes'" style="font-weight: bold; font-size: 15px; color: #dc3545; margin-top: 8px; margin-bottom: 0;">
+        <p v-if="inspection.settings.conclusion.flooded === 'yes'" style="font-weight: bold; font-size: 15px; color: #dc3545; margin-top: 8px; margin-bottom: 0;">
           Bekas Banjir
         </p>
         <p v-else style="font-weight: bold; font-size: 15px; color: #28a745; margin-top: 8px; margin-bottom: 0;">
@@ -116,7 +116,7 @@
     <!-- Kolom Kanan: Status Tabrak -->
     <td style="width: 50%; padding: 6px; vertical-align: top;">
       <div style="text-align: center;">
-        <template v-if="inspection.settings.collision === 'yes'">
+        <template v-if="inspection.settings.conclusion.collision === 'yes'">
           <img :src="collisionImage" alt="Tabrak" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
           <p :style="{ fontWeight: 'bold', fontSize: '15px', color: collisionColor, marginTop: '8px', marginBottom: '0' }">
             {{ collisionText }}
@@ -598,24 +598,24 @@ const formatNote = (point) => {
 
 // Computed properties for collision status
 const collisionImage = computed(() => {
-  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return '/images/icons/aman.png'
-  const severity = inspection.value.settings.collisionSeverity
+  if (!inspection.value.settings || inspection.value.settings.conclusion.collision !== 'yes') return '/images/icons/aman.png'
+  const severity = inspection.value.settings.conclusion.collision_severity
   if (severity === 'moderate') return '/images/icons/beruntun.png'
   if (severity === 'heavy') return '/images/icons/berat.png'
   return '/images/icons/ringan.png'
 })
 
 const collisionText = computed(() => {
-  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return 'Bebas Tabrak'
-  const severity = inspection.value.settings.collisionSeverity
+  if (!inspection.value.settings || inspection.value.settings.conclusion.collision !== 'yes') return 'Bebas Tabrak'
+  const severity = inspection.value.settings.conclusion.collision_severity
   if (severity === 'moderate') return 'Tabrak Beruntun'
   if (severity === 'heavy') return 'Tabrak Berat'
   return 'Tabrak Ringan'
 })
 
 const collisionColor = computed(() => {
-  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return '#28a745'
-  const severity = inspection.value.settings.collisionSeverity
+  if (!inspection.value.settings || inspection.value.settings.conclusion.collision !== 'yes') return '#28a745'
+  const severity = inspection.value.settings.conclusion.collision_severity
   if (severity === 'moderate') return '#fd7e14'
   if (severity === 'heavy') return '#dc3545'
   return '#ffc107'
