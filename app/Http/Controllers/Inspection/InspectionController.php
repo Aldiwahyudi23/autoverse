@@ -863,7 +863,9 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
                 ];
             });
 
-// dd($dataCarOther);
+
+
+// dd($carOtherNames);
         $coverImage = InspectionImage::where('inspection_id', $inspection->id)
             ->whereHas('point', function ($q) {
                 $q->where('name', 'Depan Kanan');
@@ -892,7 +894,7 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
 
         // $repairEstimations = $inspection->repairEstimations;
         // $user_roles = auth()->user()->roles->pluck('name')->toArray();
-        // return view('inspection.report.mPDF2', compact('inspection', 'menu_points', 'coverImage','repairEstimations','totalRepairCost','encryptedIds','user_roles','dataCarOther')); 
+        // return view('inspection.report.mPDF2', compact('inspection', 'menu_points', 'coverImage','repairEstimations','totalRepairCost','encryptedIds','user_roles','dataCarOther','carOtherNames')); 
    
     }
 

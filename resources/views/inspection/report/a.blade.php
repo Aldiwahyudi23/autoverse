@@ -104,7 +104,7 @@
                     @php
                         $collisionImage = public_path('images/icons/ringan.png');
                         $collisionText = 'Tabrak Ringan';
-                        $collisionColor = '#ff6f00';
+                        $collisionColor = '#ffc107';
                         if ($collisionSeverity === 'moderate') {
                             $collisionImage = public_path('images/icons/beruntun.png');
                             $collisionText = 'Tabrak Beruntun';
@@ -393,7 +393,7 @@
                             @php
                                 $collisionImage = public_path('images/icons/ringan.png');
                                 $collisionText = 'Tabrak Ringan';
-                                $collisionColor = '#ff6f00';
+                                $collisionColor = '#ffc107';
                                 if ($collisionSeverity === 'moderate') {
                                     $collisionImage = public_path('images/icons/beruntun.png');
                                     $collisionText = 'Tabrak Beruntun';
@@ -428,12 +428,6 @@
                             // PERUBAHAN: Skip point dengan input_type 'image' dari tabel
                             if ($point->input_type === 'image') {
                                 continue; // Lewati dari tabel, tapi gambar tetap akan ditampilkan nanti
-                            }
-
-                            // Skip points yang ada di carOtherNames (data sudah ditampilkan di tabel utama)
-                            $pointName = $point->inspection_point->name ?? '';
-                            if (in_array($pointName, $carOtherNames ?? [])) {
-                                continue; // Lewati dari tabel dokumen
                             }
 
                             if (!$hasResult && !$hasImage) {
@@ -791,7 +785,7 @@
                                             @if($isRadioType && !empty($statusArray))
                                                 @foreach($statusArray as $status)
                                                     @php
-                                                        $statusColor = '#ff6f00';
+                                                        $statusColor = '#ffc107';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
@@ -830,7 +824,7 @@
                                             @if($isRadioType && !empty($statusArray))
                                                 @foreach($statusArray as $status)
                                                     @php
-                                                        $statusColor = '#ff6f00';
+                                                        $statusColor = '#ffc107';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
@@ -957,7 +951,7 @@
                                 </div>
 
                                 @if ($showTextarea && !empty($result->note))
-                                    <div style="margin: 10px 0 4px 0; font-style: italic; color:  #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                                    <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
                                         <strong>Catatan:</strong> {{ $result->note }}
                                     </div>
                                 @endif
@@ -1085,7 +1079,7 @@
                                             @if($isRadioType && !empty($statusArray))
                                                 @foreach($statusArray as $status)
                                                     @php
-                                                        $statusColor = '#ff6f00';
+                                                        $statusColor = '#ffc107';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
@@ -1124,7 +1118,7 @@
                                             @if($isRadioType && !empty($statusArray))
                                                 @foreach($statusArray as $status)
                                                     @php
-                                                        $statusColor = '#ff6f00';
+                                                        $statusColor = '#ffc107';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
@@ -1487,7 +1481,7 @@
                             <td style="padding: 8px 10px; font-size: 13px; vertical-align: top;"> 
                                 <div style="font-size: 12px;">
                                     <span style="font-weight: bold; color: #555;">Urgency:</span>
-                                    <span style="color: {{ $estimation->urgency === 'segera' ? '#dc3545' : '#ff6f00' }}; font-weight: bold;">
+                                    <span style="color: {{ $estimation->urgency === 'segera' ? '#dc3545' : '#ffc107' }}; font-weight: bold;">
                                         {{ $estimation->urgency === 'segera' ? 'Segera' : 'Jangka Panjang' }}
                                     </span>
                                     <span style="color: #999; margin-left: 5px; font-size: 11px;">
@@ -1654,3 +1648,5 @@
 </div>
 </body>
 </html>
+
+{{-- kode mpdf jadi sages rubah KM --}}

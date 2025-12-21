@@ -77,6 +77,7 @@
 <script setup>
 import { ref, watch, computed} from 'vue';
 import { debounce } from 'lodash';
+import Fuse from 'fuse.js';
 
 const props = defineProps({
     carId: [Number, String],
@@ -120,13 +121,28 @@ const searchCars = debounce(() => {
         showSuggestions.value = false;
         return;
     }
-    
+
     isSearching.value = true;
-    const query = carSearchQuery.value.toLowerCase().trim();
-    filteredCars.value = props.carDetail.filter(car => {
-        const carName = formatCarName(car).toLowerCase();
-        return carName.includes(query);
+    const query = carSearchQuery.value.trim();
+
+    // Prepare cars with formatted names
+    const carsWithFormattedNames = props.carDetail.map(car => ({
+        ...car,
+        formattedName: formatCarName(car)
+    }));
+
+    // Initialize Fuse for fuzzy search
+    const fuse = new Fuse(carsWithFormattedNames, {
+        keys: ['formattedName'],
+        threshold: 0.6, // More lenient for longer queries
+        findAllMatches: true, // Match all words in the query
+        includeScore: true
     });
+
+    // Perform search and limit results
+    const results = fuse.search(query).slice(0, 10);
+    filteredCars.value = results.map(result => result.item);
+
     showSuggestions.value = true;
     isSearching.value = false;
 }, 300);

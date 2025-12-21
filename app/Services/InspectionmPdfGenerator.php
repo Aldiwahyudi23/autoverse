@@ -40,30 +40,32 @@ class InspectionmPdfGenerator
             })
             ->get();
 
-                    //Filter untuk ambil data lain-lain
-            $carOtherNames = [
-                'Pajak Tahunan',
-                'Pajak 5 Tahunan',
-                'PKB',
-                'Kepemilikan',
-                'BS/BM',
-            ];
+                 //Filter untuk ambil data lain-lain
+        $carOtherNames = [
+            'Jarak Tempuh (KM)',
+            'Pajak Tahunan',
+            'Pajak 5 Tahunan',
+            'PKB',
+            'Kepemilikan',
+            'BS/BM',
+        ];
 
-            $dataCarOther = $menu_points
-                ->filter(fn ($item) =>
-                    $item->inspection_point &&
-                    in_array($item->inspection_point->name, $carOtherNames)
-                )
-                ->mapWithKeys(function ($item) {
-                    $result = $item->inspection_point->results->first();
+        $dataCarOther = $menu_points
+            ->filter(fn ($item) =>
+                $item->inspection_point &&
+                in_array($item->inspection_point->name, $carOtherNames)
+            )
+            ->mapWithKeys(function ($item) {
+                $result = $item->inspection_point->results->first();
 
-                    return [
-                        Str::camel(str_replace(['/', ' '], '_', $item->inspection_point->name)) => [
-                            'status' => $result->status ?? null,
-                            'note'   => $result->note ?? null,
-                        ]
-                    ];
-                });
+                return [
+                    Str::camel(str_replace(['/', ' '], '_', $item->inspection_point->name)) => [
+                        'status' => $result->status ?? null,
+                        'note'   => $result->note ?? null,
+                    ]
+                ];
+            });
+
 
             // Ambil cover image (Depan Kanan), jika tidak ada pakai image pertama
             $coverImage = InspectionImage::where('inspection_id', $inspection->id)
@@ -110,6 +112,7 @@ class InspectionmPdfGenerator
                 'repairEstimations' => $inspection->repairEstimations,
                 'totalRepairCost' => $totalRepairCost,
                 'dataCarOther' => $dataCarOther,
+                'carOtherNames' => $carOtherNames,
                 // Kirim informasi role user
                 'user_roles' => auth()->user()->roles->pluck('name')->toArray()
 

@@ -94,7 +94,45 @@
             </tr>
           </table>
         </div>
+
+       <!-- Tabel Status Banjir dan Tabrak -->
+<table v-if="inspection.settings" style="width: 100%; margin: 15px 0; border-collapse: collapse;">
+  <tr>
+    <!-- Kolom Kiri: Status Banjir -->
+    <td style="width: 50%; padding: 6px; vertical-align: top;">
+      <div style="text-align: center;">
+        <img v-if="inspection.settings.flooded === 'yes'" src="/images/icons/banjir.png" alt="Banjir" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
+        <img v-else src="/images/icons/aman.png" alt="Aman" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
         
+        <p v-if="inspection.settings.flooded === 'yes'" style="font-weight: bold; font-size: 15px; color: #dc3545; margin-top: 8px; margin-bottom: 0;">
+          Bekas Banjir
+        </p>
+        <p v-else style="font-weight: bold; font-size: 15px; color: #28a745; margin-top: 8px; margin-bottom: 0;">
+          Bebas Banjir
+        </p>
+      </div>
+    </td>
+    
+    <!-- Kolom Kanan: Status Tabrak -->
+    <td style="width: 50%; padding: 6px; vertical-align: top;">
+      <div style="text-align: center;">
+        <template v-if="inspection.settings.collision === 'yes'">
+          <img :src="collisionImage" alt="Tabrak" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
+          <p :style="{ fontWeight: 'bold', fontSize: '15px', color: collisionColor, marginTop: '8px', marginBottom: '0' }">
+            {{ collisionText }}
+          </p>
+        </template>
+        <template v-else>
+          <img src="/images/icons/aman.png" alt="Aman" style="width: 80px; height: 80px; display: block; margin: 0 auto;">
+          <p style="font-weight: bold; font-size: 15px; color: #28a745; margin-top: 8px; margin-bottom: 0;">
+            Bebas Tabrak
+          </p>
+        </template>
+      </div>
+    </td>
+  </tr>
+</table>
+
         <!-- Kesimpulan Inspeksi -->
         <div v-if="inspection.notes" class="conclusion p-4 bg-gray-50 border-l-4 border-gray-800 rounded-lg">
           <h3 class="text-lg font-bold mb-2 text-gray-800">Kesimpulan Inspeksi:</h3>
@@ -539,11 +577,11 @@ const formatNote = (point) => {
     const cleanedNote = result.note.replace(/[^\d.-]/g, '')
     const value = parseFloat(cleanedNote)
     
-    if (isNaN(value)) {
-      return result.note
-    }
+  if (isNaN(value)) {
+    return result.note
+  }
 
-    const symbol = settings.currency_symbol || 'Rp'
+  const symbol = settings.currency_symbol || 'Rp'
     const formatter = new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
@@ -557,6 +595,31 @@ const formatNote = (point) => {
 
   return result.note
 }
+
+// Computed properties for collision status
+const collisionImage = computed(() => {
+  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return '/images/icons/aman.png'
+  const severity = inspection.value.settings.collisionSeverity
+  if (severity === 'moderate') return '/images/icons/beruntun.png'
+  if (severity === 'heavy') return '/images/icons/berat.png'
+  return '/images/icons/ringan.png'
+})
+
+const collisionText = computed(() => {
+  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return 'Bebas Tabrak'
+  const severity = inspection.value.settings.collisionSeverity
+  if (severity === 'moderate') return 'Tabrak Beruntun'
+  if (severity === 'heavy') return 'Tabrak Berat'
+  return 'Tabrak Ringan'
+})
+
+const collisionColor = computed(() => {
+  if (!inspection.value.settings || inspection.value.settings.collision !== 'yes') return '#28a745'
+  const severity = inspection.value.settings.collisionSeverity
+  if (severity === 'moderate') return '#fd7e14'
+  if (severity === 'heavy') return '#dc3545'
+  return '#ffc107'
+})
 </script>
 
 <style scoped>
