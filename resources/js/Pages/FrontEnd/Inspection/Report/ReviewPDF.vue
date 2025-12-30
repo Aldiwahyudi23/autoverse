@@ -1,17 +1,5 @@
 <template>
   <div class="p-6 bg-white rounded-lg shadow-md">
-    <!-- Tombol Persetujuan Laporan -->
-    <div v-if="canApproveReport" class="mt-2 mb-6">
-      <button 
-        @click="showConfirmationModal = true"
-        class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-      >
-        Setujui Laporan
-      </button>
-      <p class="text-sm text-gray-500 mt-2 italic">
-        Catatan: Halaman ini hanya simulasi dan mungkin berbeda dengan tampilan file PDF. Silakan periksa lebih detail untuk memastikan tidak ada kesalahan. Jika sudah yakin, silakan setujui untuk proses selanjutnya.
-      </p>
-    </div>
 
     <!-- Konten Laporan -->
     <div v-if="hasDataOrImages">
@@ -236,6 +224,19 @@
         @update:estimations="updateEstimations"
         @update:totalCost="updateTotalCost"
       />
+
+       <!-- Tombol Persetujuan Laporan -->
+    <div v-if="canApproveReport" class="mt-2 mb-6">
+      <button 
+        @click="showConfirmationModal = true"
+        class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+      >
+        Setujui Laporan
+      </button>
+      <p class="text-sm text-gray-500 mt-2 italic">
+        Catatan: Halaman ini hanya simulasi dan mungkin berbeda dengan tampilan file PDF. Silakan periksa lebih detail untuk memastikan tidak ada kesalahan. Jika sudah yakin, silakan setujui untuk proses selanjutnya.
+      </p>
+    </div>
 
     </div>
     

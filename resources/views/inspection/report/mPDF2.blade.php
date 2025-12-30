@@ -9,7 +9,7 @@
         <tr>
             <td style="width: 33%;">
                 <h1 style="font-size: 24px; margin: 0; line-height: 1.2;">
-                    <span style="color: #28a745;">Auto</span><span style="color: #000000;">Verse</span>
+                    <span style="color: #6bdb67;">Auto</span><span style="color: #000000;">Verse</span>
                 </h1>
             </td>
             <td style="width: 34%; text-align: center;">
@@ -136,7 +136,6 @@
 {{-- STEP 1: REGROUP DATA SEBELUM RENDER UTAMA --}}
 {{-- ================================================================ --}}
 @php
-
    $groupedMenuPoints = $menu_points
             ->sortBy(function ($point) {
                 $component = $point->inspection_point->component;
@@ -294,6 +293,7 @@
         // LOGIKA UNTUK MENENTUKAN APAKAH KOMPONEN MEMILIKI DATA
         // ============================================
         $hasData = false;
+        $hasImagesForComponent = false; // Flag untuk cek apakah komponen memiliki gambar
         
         // 1. KOMPONEN KHUSUS YANG SELALU DITAMPILKAN JIKA ADA DATANYA
         if (in_array($componentName, ['Eksterior', 'Interior'])) {
@@ -301,8 +301,15 @@
             foreach($points as $point) {
                 $result = $point->inspection_point->results->first();
                 $hasResult = $result && (!empty($result->status) || !empty($result->note));
+                $hasImage = $point->inspection_point->images && $point->inspection_point->images->isNotEmpty();
+                
                 if ($hasResult) {
                     $hasData = true;
+                }
+                if ($hasImage) {
+                    $hasImagesForComponent = true;
+                }
+                if ($hasData && $hasImagesForComponent) {
                     break;
                 }
             }
@@ -310,14 +317,29 @@
         // 2. RANGKA (VALIDASI TABRAK) - hanya jika YES
         elseif ($componentName == 'Rangka (Validasi Tabrak)') {
             $hasData = ($collision == 'yes');
+            // Cek apakah ada gambar untuk komponen ini
+            foreach($points as $point) {
+                if($point->inspection_point->images && $point->inspection_point->images->isNotEmpty()) {
+                    $hasImagesForComponent = true;
+                    break;
+                }
+            }
         }
         // 3. INTERIOR (VALIDASI BANJIR) - hanya jika YES
         elseif ($componentName == 'Interior (Validasi Banjir)') {
             $hasData = ($flooded == 'yes');
+            // Cek apakah ada gambar untuk komponen ini
+            foreach($points as $point) {
+                if($point->inspection_point->images && $point->inspection_point->images->isNotEmpty()) {
+                    $hasImagesForComponent = true;
+                    break;
+                }
+            }
         }
         // 4. FOTO KENDARAAN - cek gambar
         elseif ($componentName == 'Foto Kendaraan') {
             $hasData = $points->flatMap(fn($p) => $p->inspection_point->images)->isNotEmpty();
+            $hasImagesForComponent = $hasData;
         }
         // 5. DOKUMEN - cek hasil ATAU gambar, tapi dengan logika khusus
         elseif ($componentName == 'Dokumen') {
@@ -331,23 +353,32 @@
                 if ($point->input_type === 'image') {
                     if ($hasImage) {
                         $hasData = true;
+                        $hasImagesForComponent = true;
                         break;
                     }
                 } else {
                     if ($hasResult || $hasImage) {
                         $hasData = true;
+                        if ($hasImage) $hasImagesForComponent = true;
                         break;
                     }
                 }
             }
         }
-        // 6. KOMPONEN LAINNYA - cek hasil
+        // 6. KOMPONEN LAINNYA - cek hasil dan gambar
         else {
             foreach($points as $point) {
                 $result = $point->inspection_point->results->first();
                 $hasResult = $result && (!empty($result->status) || !empty($result->note));
+                $hasImage = $point->inspection_point->images && $point->inspection_point->images->isNotEmpty();
+                
                 if ($hasResult) {
                     $hasData = true;
+                }
+                if ($hasImage) {
+                    $hasImagesForComponent = true;
+                }
+                if ($hasData && $hasImagesForComponent) {
                     break;
                 }
             }
@@ -357,7 +388,7 @@
     {{-- ============================================ --}}
     {{-- RENDER KOMPONEN JIKA ADA DATA --}}
     {{-- ============================================ --}}
-    @if($hasData)
+    @if($hasData || $hasImagesForComponent)
         {{-- Page break untuk komponen khusus --}}
         @if(in_array($componentName, ['Dokumen', 'Foto Kendaraan', 'Rangka (Validasi Tabrak)', 'Interior (Validasi Banjir)']))
             <div style="page-break-before: always;"></div>
@@ -591,8 +622,18 @@
                                     $result = $p->inspection_point->results->first();
                                     $status = strtolower($result->status ?? '');
                                     
-                                    if($p->inspection_point->images && $p->inspection_point->images->isNotEmpty() && in_array($status, $validStatuses)) {
-                                        $allCarImages = array_merge($allCarImages, $p->inspection_point->images->all());
+                                    // LOGIKA BARU: 
+                                    // - Jika bebas banjir (flooded == 'no') tapi ada catatan selain ok, gambar masuk ke Interior
+                                    // - Jika bukan tabrak (collision == 'no') tapi ada catatan selain ok, gambar masuk ke Eksterior
+                                    // - Jika status ok, gambar tetap di Foto Kendaraan
+                                    if($p->inspection_point->images && $p->inspection_point->images->isNotEmpty()) {
+                                        if (in_array($status, $validStatuses)) {
+                                            // Status OK - gambar masuk ke Foto Kendaraan
+                                            $allCarImages = array_merge($allCarImages, $p->inspection_point->images->all());
+                                        } else {
+                                            // Status bukan OK - gambar TIDAK masuk ke Foto Kendaraan
+                                            // Gambar akan ditampilkan di komponen asalnya (Interior/Eksterior)
+                                        }
                                     }
                                 }
                             }
@@ -923,7 +964,7 @@
                                 </table>
                                 
                                 <div style="margin-top: 10px;">
-                                    <table class="image-table">
+                                    <table style="width: 100%; border-collapse: collapse;">
                                         @php
                                             $images = $point->inspection_point->images;
                                             $columns = 5;
@@ -932,23 +973,23 @@
                                         @foreach($imageChunks as $chunk)
                                             <tr>
                                                 @foreach($chunk as $img)
-                                                    <td style="width: 20%;">
+                                                    <td style="width: 20%; text-align: center; padding: 5px;">
                                                         @if($img->image_path && file_exists(public_path($img->image_path)))
-                                                            <div class="image-container">
-                                                                <img src="{{ public_path($img->image_path) }}" alt="image">
+                                                            <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
+                                                                <img src="{{ public_path($img->image_path) }}" 
+                                                                     alt="{{ $img->point->name ?? 'image' }}" 
+                                                                     style="max-width: 120px; max-height: 120px; object-fit: contain;">
                                                             </div>
                                                         @else
-                                                            <div class="image-placeholder">
-                                                                <span>Gambar tidak ditemukan</span>
+                                                            <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                                <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
                                                             </div>
                                                         @endif
                                                     </td>
                                                 @endforeach
                                                 @for ($i = count($chunk); $i < $columns; $i++)
                                                     <td style="width: 20%;">
-                                                        <div class="image-placeholder">
-                                                            <span></span>
-                                                        </div>
+                                                        <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
                                                     </td>
                                                 @endfor
                                             </tr>
@@ -957,7 +998,7 @@
                                 </div>
 
                                 @if ($showTextarea && !empty($result->note))
-                                    <div style="margin: 10px 0 4px 0; font-style: italic; color:  #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                                    <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
                                         <strong>Catatan:</strong> {{ $result->note }}
                                     </div>
                                 @endif
@@ -970,6 +1011,31 @@
                 @else
                     @php
                         $displayPoints = [];
+                        $imagesForComponent = []; // Array untuk menyimpan gambar komponen
+                        
+                        // Kumpulkan semua gambar untuk komponen ini dengan status bukan OK
+                        foreach($points as $point) {
+                            $result = $point->inspection_point->results->first();
+                            $hasImage = $point->inspection_point->images && $point->inspection_point->images->isNotEmpty();
+                            
+                            if ($hasImage) {
+                                // Cek status
+                                $status = strtolower($result->status ?? '');
+                                $validStatuses = ['ok', 'normal', 'good', 'baik'];
+                                
+                                // LOGIKA: Gambar dengan status OK akan ditampilkan di Foto Kendaraan
+                                // Gambar dengan status BUKAN OK akan ditampilkan di sini
+                                if (!in_array($status, $validStatuses)) {
+                                    $imagesForComponent[] = [
+                                        'point' => $point,
+                                        'images' => $point->inspection_point->images->all(),
+                                        'result' => $result
+                                    ];
+                                }
+                            }
+                        }
+                        
+                        // Kumpulkan data untuk tabel
                         foreach($points as $point) {
                             $result = $point->inspection_point->results->first();
                             $hasResult = $result && (!empty($result->status) || !empty($result->note));
@@ -1146,115 +1212,121 @@
                             @endfor
                         </table>
                     @endif
+
+                    {{-- GAMBAR UNTUK KOMPONEN (ditampilkan seperti di Rangka/Interior Validasi) --}}
+                    @if(count($imagesForComponent) > 0)
+                        @foreach($imagesForComponent as $pointData)
+                            @php
+                                $point = $pointData['point'];
+                                $result = $pointData['result'];
+                                $images = $pointData['images'];
+                                
+                                // Cek apakah perlu menampilkan gambar berdasarkan input type
+                                $inputType = $point->input_type ?? '';
+                                $selected = $result->status ?? null;
+                                
+                                $statusArray = [];
+                                if (!empty($selected)) {
+                                    if (strpos($selected, ',') !== false) {
+                                        $statusArray = array_map('trim', explode(',', $selected));
+                                    } else {
+                                        $statusArray = [$selected];
+                                    }
+                                }
+                                
+                                $settings = $point->settings ?? [];
+                                
+                                $showImages = false;
+                                $validStatuses = ['ok', 'normal', 'good', 'baik'];
+                                $currentStatus = strtolower($result->status ?? '');
+                                
+                                // Logika untuk menentukan apakah gambar ditampilkan
+                                if (!in_array($currentStatus, $validStatuses)) {
+                                    if ($inputType === 'image') {
+                                        $showImages = true;
+                                    } elseif ($inputType === 'imageTOradio') {
+                                        $showImages = true;
+                                    } elseif ($inputType === 'radio') {
+                                        foreach ($statusArray as $status) {
+                                            $selectedOption = collect($settings['radios'] ?? [])->firstWhere('value', $status);
+                                            $showImageUpload = $selectedOption['settings']['show_image_upload'] ?? false;
+                                            if ($showImageUpload) {
+                                                $showImages = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                $showTextarea = false;
+                                if (in_array($inputType, ['radio', 'imageTOradio'])) {
+                                    foreach ($statusArray as $status) {
+                                        $selectedOption = collect($settings['radios'] ?? [])->firstWhere('value', $status);
+                                        if ($selectedOption['settings']['show_textarea'] ?? false) {
+                                            $showTextarea = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            @endphp
+                            
+                            @if($showImages && count($images) > 0)
+                                <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <tr>
+                                            <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">
+                                                {{ $point->inspection_point->name ?? '-' }}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <div style="margin-top: 10px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            @php
+                                                $columns = 5;
+                                                $imageChunks = array_chunk($images, $columns);
+                                            @endphp
+                                            @foreach($imageChunks as $chunk)
+                                                <tr>
+                                                    @foreach($chunk as $img)
+                                                        <td style="width: 20%; text-align: center; padding: 5px;">
+                                                            @if($img->image_path && file_exists(public_path($img->image_path)))
+                                                                <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
+                                                                    <img src="{{ public_path($img->image_path) }}" 
+                                                                         alt="{{ $img->point->name ?? 'image' }}" 
+                                                                         style="max-width: 120px; max-height: 120px; object-fit: contain;">
+                                                                </div>
+                                                            @else
+                                                                <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                                    <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
+                                                                </div>
+                                                            @endif
+                                                        </td>
+                                                    @endforeach
+                                                    @for ($i = count($chunk); $i < $columns; $i++)
+                                                        <td style="width: 20%;">
+                                                            <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
+                                                        </td>
+                                                    @endfor
+                                                </tr>
+                                            @endforeach
+                                        </table>
+                                    </div>
+
+                                    @if ($showTextarea && !empty($result->note))
+                                        <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                                            <strong>Catatan:</strong> {{ $result->note }}
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+                        @endforeach
+                    @endif
                 @endif
             </div>
         </div>
     @endif
 @endforeach
-
-{{-- Filter Status untuk semua data  --}}
-{{-- @php
-    $allPointsWithImages = [];
-    $excludedComponents = ['Dokumen', 'Foto Kendaraan'];
-    
-    // Filter status yang tidak ingin ditampilkan
-    $excludedStatuses = ['ok', 'baik', 'normal', 'good'];
-    
-    // Loop melalui semua menu points untuk mengumpulkan data dengan gambar
-    foreach ($menu_points as $point) {
-        $componentName = optional($point->inspection_point->component)->name ?? 'Tanpa Komponen';
-        
-        // Skip jika component termasuk dalam excluded components
-        if (in_array($componentName, $excludedComponents)) {
-            continue;
-        }
-        
-        // Skip Rangka (Validasi Tabrak) jika collision == 'yes'
-        if ($componentName == 'Rangka (Validasi Tabrak)' && $collision == 'yes') {
-            continue;
-        }
-        
-        // Skip Interior (Validasi Banjir) jika flooded == 'yes'
-        if ($componentName == 'Interior (Validasi Banjir)' && $flooded == 'yes') {
-            continue;
-        }
-        
-        $result = $point->inspection_point->results->first();
-        $hasImage = $point->inspection_point->images && $point->inspection_point->images->count() > 0;
-        
-        if (!$hasImage) {
-            continue;
-        }
-        
-        $inputType = $point->input_type ?? '';
-        $selected = $result->status ?? null;
-        
-        // Filter berdasarkan status (skip jika statusnya termasuk excluded)
-        if (!empty($selected)) {
-            $selectedArray = [];
-            if (strpos($selected, ',') !== false) {
-                $selectedArray = array_map('trim', explode(',', $selected));
-            } else {
-                $selectedArray = [$selected];
-            }
-            
-            // Cek apakah semua status yang dipilih adalah excluded statuses
-            $allExcluded = true;
-            foreach ($selectedArray as $status) {
-                if (!in_array(strtolower($status), array_map('strtolower', $excludedStatuses))) {
-                    $allExcluded = false;
-                    break;
-                }
-            }
-            
-            // Jika semua statusnya excluded, skip point ini
-            if ($allExcluded && !empty($selectedArray)) {
-                continue;
-            }
-        }
-        
-        $settings = $point->settings ?? [];
-        $statusArray = [];
-        
-        if (!empty($selected)) {
-            if (strpos($selected, ',') !== false) {
-                $statusArray = array_map('trim', explode(',', $selected));
-            } else {
-                $statusArray = [$selected];
-            }
-        }
-        
-        $showImages = false;
-        
-        if ($inputType === 'image' && $hasImage) {
-            $showImages = true;
-        } elseif ($inputType === 'imageTOradio' && $hasImage) {
-            $showImages = true;
-        } elseif ($inputType === 'radio') {
-            foreach ($statusArray as $status) {
-                $selectedOption = collect($settings['radios'] ?? [])->firstWhere('value', $status);
-                $showImageUpload = $selectedOption['settings']['show_image_upload'] ?? false;
-                if ($showImageUpload && $hasImage) {
-                    $showImages = true;
-                    break;
-                }
-            }
-        }
-        
-        if ($showImages) {
-            $allPointsWithImages[] = [
-                'point' => $point,
-                'result' => $result,
-                'hasImage' => $hasImage,
-                'inputType' => $inputType,
-                'selected' => $selected,
-                'settings' => $settings,
-                'statusArray' => $statusArray,
-                'componentName' => $componentName
-            ];
-        }
-    }
-@endphp --}}
 
 {{-- Filter Status untuk semua data dengan logika khusus --}}
 @php
@@ -1376,167 +1448,82 @@
 
 {{-- Container untuk kedua menu --}}
 <div style="margin-bottom: 30px;">
-    {{-- Menu Kerusakan Lain --}}
-    @if(count($allPointsWithImages) > 0)
-        <div style="border: 1px solid #28a745; border-top-left-radius: 10px; border-top-right-radius: 10px; margin-bottom: 20px;">
-            <div style="font-size: 16px; font-weight: bold; background: #28a745; padding: 8px; border-bottom: 1px solid #218838; color: white;">
-                Kerusakan Lain
+    {{-- Menu Estimasi Perbaikan --}}
+    @if(isset($repairEstimations) && $repairEstimations->count() > 0)
+        <div class="section-box" style="border: 1px solid #28a745; border-radius: 10px 10px 0 0; margin-bottom: 20px; overflow: hidden;">
+            <div style="font-size: 16px; font-weight: bold; background: #28a745; padding: 8px; border-bottom: 1px solid #218838; color: white; position: relative;">
+                Estimasi Perbaikan
             </div>
-
+            
             <div style="padding: 10px;">
-                {{-- Hanya ingin menampilkan data di bawah saja --}}
-                @foreach($allPointsWithImages as $data)
-                    @php
-                        $point = $data['point'];
-                        $result = $data['result'];
-                        $inputType = $data['inputType'];
-                        $selected = $data['selected'];
-                        $settings = $data['settings'];
-                        $statusArray = $data['statusArray'];
-                        $componentName = $data['componentName'];
-                        
-                        // Logika untuk showTextarea
-                        $showTextarea = false;
-                        if (in_array($inputType, ['radio', 'imageTOradio'])) {
-                            foreach ($statusArray as $status) {
-                                $selectedOption = collect($settings['radios'] ?? [])->firstWhere('value', $status);
-                                if ($selectedOption['settings']['show_textarea'] ?? false) {
-                                    $showTextarea = true;
-                                    break;
-                                }
-                            }
-                        }
-                    @endphp
-                    
-                    <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
-                        <table style="width: 100%; border-collapse: collapse;">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <tbody>
+                        @foreach($repairEstimations as $index => $estimation)
                             <tr>
-                                <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 14px;">{{ $point->inspection_point->name ?? '-' }}</td>
+                                <td style="padding: 8px 10px; font-weight: bold; width: 30px; font-size: 12px; vertical-align: top; color: #666;">
+                                    {{ $index + 1 }}.
+                                </td>
+                                <td style="padding: 8px 10px; font-weight: bold; width: 400px; font-size: 13px; vertical-align: top;">
+                                    {{ $estimation->part_name }}
+                                    @if($estimation->repair_description)
+                                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; line-height: 1.4;">
+                                            {{ $estimation->repair_description }}
+                                        </div>
+                                    @endif
+                                </td>
+                                <td style="padding: 8px 10px; font-size: 13px; vertical-align: top;"> 
+                                    <div style="font-size: 12px;">
+                                        <span style="font-weight: bold; color: #555;">Urgency:</span>
+                                        <span style="color: {{ $estimation->urgency === 'segera' ? '#dc3545' : '#ff6f00' }}; font-weight: bold;">
+                                            {{ $estimation->urgency === 'segera' ? 'Segera' : 'Jangka Panjang' }}
+                                        </span>
+                                        <span style="color: #999; margin-left: 5px; font-size: 11px;">
+                                            ({{ $estimation->status === 'perlu' ? 'perlu' : ($estimation->status === 'disarankan' ? 'disarankan' : 'opsional') }})
+                                        </span>
+                                    </div>
+                                </td>
+                                <td style="padding: 8px 10px; font-weight: bold; font-size: 13px; text-align: right; vertical-align: top;">
+                                    Rp {{ number_format($estimation->estimated_cost, 0, ',', '.') }}
+                                </td>
                             </tr>
-                        </table>
+                        @endforeach
                         
-                        <div style="margin-top: 10px;">
-                            <table class="image-table">
-                                @php
-                                    $images = $point->inspection_point->images;
-                                    $columns = 5;
-                                    $imageChunks = $images->count() > 0 ? array_chunk($images->all(), $columns) : [[]];
-                                @endphp
-                                @foreach($imageChunks as $chunk)
-                                    <tr>
-                                        @foreach($chunk as $img)
-                                            <td style="width: 20%;">
-                                                @if($img->image_path && file_exists(public_path($img->image_path)))
-                                                    <div class="image-container">
-                                                        <img src="{{ public_path($img->image_path) }}" alt="image">
-                                                    </div>
-                                                @else
-                                                    <div class="image-placeholder">
-                                                        <span>Gambar tidak ditemukan</span>
-                                                    </div>
-                                                @endif
-                                            </td>
-                                        @endforeach
-                                        @for ($i = count($chunk); $i < $columns; $i++)
-                                            <td style="width: 20%;">
-                                                <div class="image-placeholder">
-                                                    <span></span>
-                                                </div>
-                                            </td>
-                                        @endfor
-                                    </tr>
-                                @endforeach
-                            </table>
-                        </div>
+                        <tr>
+                            <td colspan="3" style="padding: 15px 10px 5px 10px; text-align: right; font-weight: bold; font-size: 14px; border-top: 1px solid #eee;">
+                                Total Estimasi:
+                            </td>
+                            <td style="padding: 15px 10px 5px 10px; text-align: right; font-weight: bold; font-size: 14px; color: #28a745; border-top: 1px solid #eee;">
+                                Rp {{ number_format($totalRepairCost ?? 0, 0, ',', '.') }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
 
-                        @if ($showTextarea && !empty($result->note))
-                            <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
-                                <strong>Catatan:</strong> {{ $result->note }}
-                            </div>
-                        @endif
+                {{-- Catatan untuk Customer --}}
+                {{-- <div style="margin-top: 15px; padding: 12px; background-color: #28a745; border: 1px solid #28a745; border-radius: 5px; font-size: 12px; color: #070707;"> --}}
+                    <div style="display: flex; align-items: flex-start; font-size: 12px;">
+                        <div style="margin-right: 10px; font-size: 12px;">📝</div>
+                        <div>
+                            <strong style="display: block; margin-bottom: 5px;">Catatan Penting:</strong>
+                            <ul style="margin: 0; padding-left: 15px;">
+                                <li>Estimasi harga di atas adalah <strong>perhitungan kasar</strong> dan dapat berubah</li>
+                                <li>Harga sparepart dan jasa perbaikan dapat berbeda-beda tergantung:
+                                    <ul style="margin-top: 3px; padding-left: 15px;">
+                                        <li>Wilayah/lokasi bengkel</li>
+                                        <li>Brand dan kualitas sparepart yang digunakan</li>
+                                        <li>Tingkat kesulitan perbaikan</li>
+                                        <li>Kebijakan masing-masing bengkel</li>
+                                    </ul>
+                                </li>
+                                <li>Disarankan untuk melakukan <strong>survey harga</strong> ke beberapa bengkel terlebih dahulu</li>
+                                <li>Untuk perbaikan yang <span style="color: #dc3545; font-weight: bold;">urgent/segera</span>, segera konsultasikan dengan mekanik profesional</li>
+                            </ul>
+                        </div>
                     </div>
-                @endforeach
-                {{-- sampai sini, tapi dengan menu yang namanya Kerusakan Lainnya --}}
+                {{-- </div> --}}
             </div>
         </div>
     @endif
-
-{{-- Menu Estimasi Perbaikan --}}
-@if(isset($repairEstimations) && $repairEstimations->count() > 0)
-    <div class="section-box" style="border: 1px solid #28a745; border-radius: 10px 10px 0 0; margin-bottom: 20px; overflow: hidden;">
-        <div style="font-size: 16px; font-weight: bold; background: #28a745; padding: 8px; border-bottom: 1px solid #218838; color: white; position: relative;">
-            Estimasi Perbaikan
-        </div>
-        
-        <div style="padding: 10px;">
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                <tbody>
-                    @foreach($repairEstimations as $index => $estimation)
-                        <tr>
-                            <td style="padding: 8px 10px; font-weight: bold; width: 30px; font-size: 12px; vertical-align: top; color: #666;">
-                                {{ $index + 1 }}.
-                            </td>
-                            <td style="padding: 8px 10px; font-weight: bold; width: 400px; font-size: 13px; vertical-align: top;">
-                                {{ $estimation->part_name }}
-                                @if($estimation->repair_description)
-                                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; line-height: 1.4;">
-                                        {{ $estimation->repair_description }}
-                                    </div>
-                                @endif
-                            </td>
-                            <td style="padding: 8px 10px; font-size: 13px; vertical-align: top;"> 
-                                <div style="font-size: 12px;">
-                                    <span style="font-weight: bold; color: #555;">Urgency:</span>
-                                    <span style="color: {{ $estimation->urgency === 'segera' ? '#dc3545' : '#ff6f00' }}; font-weight: bold;">
-                                        {{ $estimation->urgency === 'segera' ? 'Segera' : 'Jangka Panjang' }}
-                                    </span>
-                                    <span style="color: #999; margin-left: 5px; font-size: 11px;">
-                                        ({{ $estimation->status === 'perlu' ? 'perlu' : ($estimation->status === 'disarankan' ? 'disarankan' : 'opsional') }})
-                                    </span>
-                                </div>
-                            </td>
-                            <td style="padding: 8px 10px; font-weight: bold; font-size: 13px; text-align: right; vertical-align: top;">
-                                Rp {{ number_format($estimation->estimated_cost, 0, ',', '.') }}
-                            </td>
-                        </tr>
-                    @endforeach
-                    
-                    <tr>
-                        <td colspan="3" style="padding: 15px 10px 5px 10px; text-align: right; font-weight: bold; font-size: 14px; border-top: 1px solid #eee;">
-                            Total Estimasi:
-                        </td>
-                        <td style="padding: 15px 10px 5px 10px; text-align: right; font-weight: bold; font-size: 14px; color: #28a745; border-top: 1px solid #eee;">
-                            Rp {{ number_format($totalRepairCost ?? 0, 0, ',', '.') }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            {{-- Catatan untuk Customer --}}
-            {{-- <div style="margin-top: 15px; padding: 12px; background-color: #28a745; border: 1px solid #28a745; border-radius: 5px; font-size: 12px; color: #070707;"> --}}
-                <div style="display: flex; align-items: flex-start; font-size: 12px;">
-                    <div style="margin-right: 10px; font-size: 12px;">📝</div>
-                    <div>
-                        <strong style="display: block; margin-bottom: 5px;">Catatan Penting:</strong>
-                        <ul style="margin: 0; padding-left: 15px;">
-                            <li>Estimasi harga di atas adalah <strong>perhitungan kasar</strong> dan dapat berubah</li>
-                            <li>Harga sparepart dan jasa perbaikan dapat berbeda-beda tergantung:
-                                <ul style="margin-top: 3px; padding-left: 15px;">
-                                    <li>Wilayah/lokasi bengkel</li>
-                                    <li>Brand dan kualitas sparepart yang digunakan</li>
-                                    <li>Tingkat kesulitan perbaikan</li>
-                                    <li>Kebijakan masing-masing bengkel</li>
-                                </ul>
-                            </li>
-                            <li>Disarankan untuk melakukan <strong>survey harga</strong> ke beberapa bengkel terlebih dahulu</li>
-                            <li>Untuk perbaikan yang <span style="color: #dc3545; font-weight: bold;">urgent/segera</span>, segera konsultasikan dengan mekanik profesional</li>
-                        </ul>
-                    </div>
-                </div>
-            {{-- </div> --}}
-        </div>
-    </div>
-@endif
 </div>
 
 <div style="page-break-before: always;"></div>
