@@ -177,32 +177,31 @@ class InspectionController extends Controller
             $compressor = new NativeImageCompressor();
             
            // Di function start(), ubah bagian ini:
-// Di Controller, perbaiki bagian optimizedImages:
-$optimizedImages = $existingImages->groupBy('point_id')->map(function ($images) use ($compressor) {
-    return $images->map(function ($image) use ($compressor) {
-        // Normalize image path - remove 'storage/' prefix jika ada
-        $rawPath = $image->image_path;
-        $cleanPath = ltrim($rawPath, '/');
-        $cleanPath = str_replace('storage/', '', $cleanPath);
-        
-        // Generate URLs - PASTIKAN tidak ada double storage
-        $baseUrl = Storage::url($cleanPath); // Akan menghasilkan "/storage/[path]"
-        $optimizedUrl = $compressor->compressForWeb($cleanPath, 50);
-        
-        return [
-            'id' => $image->id,
-            'image_path' => $cleanPath, // Path relatif tanpa "storage/"
-            'path' => $cleanPath,
-            'preview' => $baseUrl, // Single "/storage/[path]"
-            'public_url' => $baseUrl,
-            'original_url' => $baseUrl,
-            'optimized_url' => $optimizedUrl,
-            'file_name' => $image->file_name,
-            'file_size' => $image->file_size,
-            'created_at' => $image->created_at,
-        ];
-    });
-});
+            $optimizedImages = $existingImages->groupBy('point_id')->map(function ($images) use ($compressor) {
+                return $images->map(function ($image) use ($compressor) {
+                    // Normalize image path - remove 'storage/' prefix jika ada
+                    $rawPath = $image->image_path;
+                    $cleanPath = ltrim($rawPath, '/');
+                    $cleanPath = str_replace('storage/', '', $cleanPath);
+                    
+                    // Generate URLs - PASTIKAN tidak ada double storage
+                    $baseUrl = Storage::url($cleanPath); // Akan menghasilkan "/storage/[path]"
+                    $optimizedUrl = $compressor->compressForWeb($cleanPath, 50);
+                    
+                    return [
+                        'id' => $image->id,
+                        'image_path' => $cleanPath, // Path relatif tanpa "storage/"
+                        'path' => $cleanPath,
+                        'preview' => $baseUrl, // Single "/storage/[path]"
+                        'public_url' => $baseUrl,
+                        'original_url' => $baseUrl,
+                        'optimized_url' => $optimizedUrl,
+                        'file_name' => $image->file_name,
+                        'file_size' => $image->file_size,
+                        'created_at' => $image->created_at,
+                    ];
+                });
+            });
 // DD($optimizedImages->toArray()); // Debugging line   
 
             $car = CarDetail::with(['brand', 'model', 'type'])

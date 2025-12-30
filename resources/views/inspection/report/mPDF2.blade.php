@@ -8,9 +8,13 @@
     <table class="header-table" style="margin-bottom: 20px; width: 100%;">
         <tr>
             <td style="width: 33%;">
-                <h1 style="font-size: 24px; margin: 0; line-height: 1.2;">
+                {{-- <h1 style="font-size: 24px; margin: 0; line-height: 1.2;">
                     <span style="color: #6bdb67;">Auto</span><span style="color: #000000;">Verse</span>
-                </h1>
+                </h1> --}}
+                <img src="{{ public_path('images/logo/Autoverse.png') }}"
+                    alt="Logo Autoverse"
+                    style="width: 120px; height: auto;">
+
             </td>
             <td style="width: 34%; text-align: center;">
                 <h1 style="font-size: 18px; margin: 0; font-weight: bold;">Laporan Hasil Inspeksi</h1>
@@ -1550,7 +1554,7 @@
                         </span>
                         <span style="font-size: 11.5px; color: #555; line-height: 1.5; display: block; margin-top: 3px;">
                             (misalnya bunyi tidak wajar, fungsi elektrikal, lampu indikator, dan fitur penunjang ADAS/Cruise Control/dll.), 
-                            <span style="color: #d32f2f; font-weight: bold; text-decoration: underline;">DIWAJIBKAN untuk melakukan Test Drive Terlebih Dahulu</span> 
+                            <span style="color: #d32f2f; font-weight: bold; text-decoration: underline;">DISARANKAN untuk melakukan Test Drive Terlebih Dahulu</span> 
                             sebelum pembayaran/transaksi.
                         </span>
                     </div>
