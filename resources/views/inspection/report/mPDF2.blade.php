@@ -13,7 +13,7 @@
                 </h1> --}}
                 <img src="{{ public_path('images/logo/Autoverse.png') }}"
                     alt="Logo Autoverse"
-                    style="width: 120px; height: auto;">
+                    style="width: 140px; height: auto;">
 
             </td>
             <td style="width: 34%; text-align: center;">
