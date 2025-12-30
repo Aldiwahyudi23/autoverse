@@ -129,6 +129,16 @@
       @photo-captured="handlePhotoCaptured"
     />
 
+    <!-- <WebCamBrowser
+      :show="showWebcamModal"
+      :aspect-ratio="aspectRatio"
+      :settings="settings"
+      :point="point"
+      @close="closeWebcam"
+      @photo-captured="handlePhotoCaptured"
+    /> -->
+
+
     <PreviewModal
       :show="showPreviewModal"
       :images="allImages"
@@ -156,6 +166,7 @@ import ImageSourceOptionsModal from './Modal-uploader/ImageSourceOptionsModal.vu
 import PreviewModal from './Modal-uploader/PreviewModal.vue';
 import axios from 'axios';
 import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
+// import WebCamBrowser from './Modal-uploader/CameraWebcam.vue';
 
 // Debug flag
 const DEBUG = true;

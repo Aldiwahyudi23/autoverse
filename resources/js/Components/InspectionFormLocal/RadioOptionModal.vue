@@ -115,26 +115,6 @@
         </label>
       </div>
 
-      <!-- Textarea for Options -->
-      <div v-if="showTextarea" class="space-y-2">
-        <span v-if="textareaOption?.settings?.required" class="text-red-500">*</span>
-        <Textarea
-          :model-value="notesValue"
-          :point-id="pointId"
-          :inspection-id="inspectionId"
-          :settings="textareaOption?.settings"
-          :required="textareaOption?.settings?.required"
-          :min-length="textareaOption?.settings?.min_length"
-          :max-length="textareaOption?.settings?.max_length"
-          :placeholder="textareaOption?.settings?.placeholder || 'Tambahkan keterangan...'"
-          @update:modelValue="$emit('update:notesValue', $event)"
-          @save="$emit('saveTextarea', $event)"
-        />
-        <p v-if="textareaOption?.settings?.required && !notesValue" class="text-xs text-red-500">
-          Keterangan wajib diisi
-        </p>
-      </div>
-
       <!-- Image Upload for Options -->
       <div v-if="showImageUpload" class="mt-4">
         <h4 class="text-sm font-medium text-gray-700 mb-2">
@@ -154,6 +134,27 @@
           Foto wajib diupload
         </p>
       </div>
+
+        <!-- Textarea for Options -->
+      <div v-if="showTextarea" class="space-y-2">
+        <span v-if="textareaOption?.settings?.required" class="text-red-500">*</span>
+        <Textarea
+          :model-value="notesValue"
+          :point-id="pointId"
+          :inspection-id="inspectionId"
+          :settings="textareaOption?.settings"
+          :required="textareaOption?.settings?.required"
+          :min-length="textareaOption?.settings?.min_length"
+          :max-length="textareaOption?.settings?.max_length"
+          :placeholder="textareaOption?.settings?.placeholder || 'Tambahkan keterangan...'"
+          @update:modelValue="$emit('update:notesValue', $event)"
+          @save="$emit('saveTextarea', $event)"
+        />
+        <p v-if="textareaOption?.settings?.required && !notesValue" class="text-xs text-red-500">
+          Keterangan wajib diisi
+        </p>
+      </div>
+
     </div>
     
     <template #footer>

@@ -41,25 +41,14 @@
       }"
       aria-label="Image gallery"
     >
-      <!-- Upload Progress Indicator -->
-      <div v-if="isUploading" class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-medium text-blue-700">Mengupload gambar...</span>
-          <span class="text-xs text-blue-600">{{ uploadProgress }}%</span>
-        </div>
-        <div class="w-full bg-blue-200 rounded-full h-2">
-          <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" :style="{ width: uploadProgress + '%' }"></div>
-        </div>
-        <p class="text-xs text-blue-600 mt-1">{{ currentUploading }}/{{ totalToUpload }} gambar terupload</p>
-      </div>
-
       <div v-if="settings.max_files === 1" class="flex items-center gap-4">
         <div 
           class="relative flex-shrink-0 w-24 h-24 overflow-hidden rounded-md border border-gray-200 cursor-pointer"
           @click="openPreviewModal(0)"
         >
           <img
-            :src="getImageSrc(allImages[0])"
+            :src="safeImageSrc(allImages[0])"
+            @error="handleImageError(allImages[0])"
             class="w-full h-full object-cover"
           />
           <div v-if="allImages[0].isUploading" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -94,12 +83,13 @@
 
         <div
           v-for="(image, idx) in allImages"
-          :key="image.id || image.preview"
+          :key="image.id || image.preview || idx"
           class="relative flex-shrink-0 w-24 h-24 overflow-hidden rounded-md border border-gray-200 cursor-pointer"
           @click="image.isFailed ? retryUpload(image) : openPreviewModal(idx)"
         >
           <img
-            :src="getImageSrc(image)"
+            :src="safeImageSrc(image)"
+            @error="handleImageError(image)"
             class="w-full h-full object-cover"
           >
           <div v-if="image.isNew || image.rotation !== 0"
@@ -130,11 +120,11 @@
       @trigger-gallery="triggerGallery"
     />
 
-    <WebcamModal
+    <WebCamRTC
       :show="showWebcamModal"
       :aspect-ratio="aspectRatio"
       :settings="settings"
-      :point="point"
+      :point="point"      
       @close="closeWebcam"
       @photo-captured="handlePhotoCaptured"
     />
@@ -161,11 +151,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, inject  } from 'vue';
+import { ref, computed, watch, onMounted, inject } from 'vue';
 import ImageSourceOptionsModal from './Modal-uploader/ImageSourceOptionsModal.vue';
-import WebcamModal from './Modal-uploader/WebcamModal.vue';
 import PreviewModal from './Modal-uploader/PreviewModal.vue';
 import axios from 'axios';
+import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
+
+// Debug flag
+const DEBUG = true;
 
 // Define props dan emits
 const props = defineProps({
@@ -198,15 +191,15 @@ const showPreviewModal = ref(false);
 const previewImages = ref([]);
 const currentPreviewIndex = ref(0);
 const isUploading = ref(false);
+const imageError = ref(false);
 
-// TAMBAH: Upload progress tracking
+// Upload progress tracking
 const uploadProgress = ref(0);
 const currentUploading = ref(0);
 const totalToUpload = ref(0);
 
-// TAMBAH: Inject image source setting dari parent
+// Inject image source setting dari parent
 const imageSourceSetting = inject('imageSourceSetting', ref('all'));
-
 
 // KEY untuk local storage backup
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;
@@ -228,52 +221,216 @@ const aspectRatio = computed(() => {
   return 3 / 4;
 });
 
+// ============ FIXED: allImages computed ============
 const allImages = computed(() => {
+  if (DEBUG) console.log('🔄 allImages computed called');
+  
   const finalImages = [];
   const processedIds = new Set();
-  
-  // Images dari server (sudah terupload)
+
+  // 1. Process database images (revision mode)
   for (const mImg of props.modelValue) {
+    if (!mImg || typeof mImg !== 'object') continue;
+    
+    if (mImg.id && processedIds.has(mImg.id)) continue;
     if (mImg.id) processedIds.add(mImg.id);
+
+    // Debug log untuk melihat struktur data
+    if (DEBUG) {
+      console.log('📥 Database image:', mImg);
+      console.log('📥 Type of preview:', typeof mImg.preview);
+      console.log('📥 Type of public_url:', typeof mImg.public_url);
+    }
+
+    // Normalize image data
+    const normalizedImage = normalizeImageData(mImg);
+    
     finalImages.push({
-      ...mImg,
-      rotation: mImg.rotation || 0,
+      ...normalizedImage,
+      rotation: normalizedImage.rotation || 0,
       isNew: false,
       isUploaded: true,
-      preview: mImg.preview || (mImg.image_path ? `/${mImg.image_path}` : null)
+      isUploading: false,
+      isFailed: false
     });
   }
-  
-  // Images baru (preview) - tandai yang sedang diupload
+
+  // 2. Process preview images (new images)
   for (const pImg of previewImages.value) {
     if (pImg.id) processedIds.add(pImg.id);
     finalImages.push({
       ...pImg,
-      isUploading: pImg.isUploading || false
+      isUploading: pImg.isUploading || false,
+      isFailed: pImg.isFailed || false
     });
   }
 
+  if (DEBUG) console.log('✅ Final allImages:', finalImages);
   return finalImages;
 });
 
-// Functions
-const getImageSrc = (image) => {
-  return image.preview || (image.image_path ? `/${image.image_path}` : '');
+// ============ FIXED: Helper Functions ============
+const normalizeImageData = (image) => {
+  if (!image || typeof image !== 'object') return {};
+  
+  const normalized = { ...image };
+  
+  // Ensure all URL fields are properly formatted
+  const urlFields = ['preview', 'public_url', 'original_url', 'optimized_url'];
+  urlFields.forEach(field => {
+    if (normalized[field]) {
+      // Fix double storage issue
+      normalized[field] = fixDoubleStorage(normalized[field]);
+    }
+  });
+  
+  // Ensure image_path is clean
+  if (normalized.image_path) {
+    normalized.image_path = normalized.image_path.replace(/^storage\//, '');
+  }
+  
+  return normalized;
 };
 
-// MODIFIKASI: Fungsi openSourceOptions berdasarkan setting
+const fixDoubleStorage = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  
+  // Fix "/storage/storage/" -> "/storage/"
+  let fixed = url.replace(/\/storage\/storage\//g, '/storage/');
+  
+  // Fix "//storage/storage/" -> "/storage/"
+  fixed = fixed.replace(/\/\/storage\/storage\//g, '/storage/');
+  
+  // Ensure proper format
+  if (fixed.startsWith('storage/')) {
+    fixed = `/${fixed}`;
+  }
+  
+  if (!fixed.startsWith('/') && !fixed.startsWith('http')) {
+    fixed = `/storage/${fixed}`;
+  }
+  
+  return fixed;
+};
+
+// ============ FIXED: Safe Image Source Function ============
+const safeImageSrc = (image) => {
+  if (!image || typeof image !== 'object') {
+    if (DEBUG) console.warn('❌ safeImageSrc: image is not object', image);
+    return '';
+  }
+  
+  const src = getImageSrc(image);
+  
+  // CRITICAL FIX: Ensure src is a string, not an object
+  if (typeof src !== 'string') {
+    console.error('🚨 CRITICAL: getImageSrc returned non-string:', typeof src, src);
+    return '';
+  }
+  
+  if (DEBUG && src) console.log('✅ safeImageSrc result:', src);
+  return src;
+};
+
+const getImageSrc = (image) => {
+  if (!image || typeof image !== 'object') {
+    return '';
+  }
+  
+  // Debug: log all available fields
+  if (DEBUG) {
+    console.log('🔍 getImageSrc called with:', image);
+    console.log('🔍 Available fields:', Object.keys(image));
+  }
+  
+  // Priority 1: Use preview URL (fixed for double storage)
+  if (image.preview && typeof image.preview === 'string') {
+    const fixedUrl = fixDoubleStorage(image.preview);
+    if (DEBUG) console.log('✅ Using preview URL:', fixedUrl);
+    return fixedUrl;
+  }
+  
+  // Priority 2: public_url
+  if (image.public_url && typeof image.public_url === 'string') {
+    const fixedUrl = fixDoubleStorage(image.public_url);
+    if (DEBUG) console.log('✅ Using public_url:', fixedUrl);
+    return fixedUrl;
+  }
+  
+  // Priority 3: original_url
+  if (image.original_url && typeof image.original_url === 'string') {
+    const fixedUrl = fixDoubleStorage(image.original_url);
+    if (DEBUG) console.log('✅ Using original_url:', fixedUrl);
+    return fixedUrl;
+  }
+  
+  // Priority 4: optimized_url
+  if (image.optimized_url && typeof image.optimized_url === 'string') {
+    const fixedUrl = fixDoubleStorage(image.optimized_url);
+    if (DEBUG) console.log('✅ Using optimized_url:', fixedUrl);
+    return fixedUrl;
+  }
+  
+  // Priority 5: Generate from image_path
+  if (image.image_path && typeof image.image_path === 'string') {
+    const cleanPath = image.image_path.replace(/^\/?storage\//, '');
+    const url = `/storage/${cleanPath}`;
+    if (DEBUG) console.log('✅ Generated from image_path:', url);
+    return url;
+  }
+  
+  // Priority 6: path field
+  if (image.path && typeof image.path === 'string') {
+    const cleanPath = image.path.replace(/^\/?storage\//, '');
+    const url = `/storage/${cleanPath}`;
+    if (DEBUG) console.log('✅ Generated from path:', url);
+    return url;
+  }
+  
+  if (DEBUG) console.warn('⚠️ No valid image source found for:', image);
+  return '';
+};
+
+const handleImageError = (image) => {
+  console.error('❌ Image load error for:', image);
+  console.error('❌ Attempted URL:', safeImageSrc(image));
+  imageError.value = true;
+  
+  // Try fallback URL
+  const fallbackUrl = getFallbackUrl(image);
+  if (fallbackUrl && fallbackUrl !== safeImageSrc(image)) {
+    console.log('🔄 Trying fallback URL:', fallbackUrl);
+    // Force reload with fallback
+    const imgElement = event?.target;
+    if (imgElement) {
+      imgElement.src = fallbackUrl;
+    }
+  }
+};
+
+const getFallbackUrl = (image) => {
+  if (!image || typeof image !== 'object') return '';
+  
+  // Try different URL fields
+  const urlFields = ['original_url', 'optimized_url', 'public_url', 'preview'];
+  for (const field of urlFields) {
+    if (image[field] && typeof image[field] === 'string') {
+      return fixDoubleStorage(image[field]);
+    }
+  }
+  
+  return '';
+};
+
+// ============ Existing Functions (minimal changes) ============
 const openSourceOptions = () => {
   if (showPreviewModal.value) showPreviewModal.value = false;
   
-  // Berdasarkan setting dari parent
   if (imageSourceSetting.value === 'camera') {
-    // Langsung buka kamera
     openWebcam();
   } else if (imageSourceSetting.value === 'gallery') {
-    // Langsung buka galeri
     triggerGallery();
   } else {
-    // Tampilkan pilihan (all/ask)
     showSourceOptionsModal.value = true;
   }
 };
@@ -298,11 +455,9 @@ const closeWebcam = () => {
   if (allImages.value.length > 0) showPreviewModal.value = true;
 };
 
-// MODIFIKASI: closePreviewModal - jangan hapus jika sedang upload
 const closePreviewModal = () => {
   showPreviewModal.value = false;
   
-  // Hanya hapus preview images jika TIDAK SEDANG UPLOAD
   if (!isUploading.value) {
     previewImages.value.forEach(img => {
       if (img.preview && img.preview.startsWith('blob:')) {
@@ -313,6 +468,27 @@ const closePreviewModal = () => {
   }
 };
 
+// ============ Debug watchers ============
+watch(() => props.modelValue, (newVal) => {
+  if (DEBUG) {
+    console.log('🔄 modelValue updated:', newVal);
+    if (newVal && newVal.length > 0) {
+      console.log('📊 First image structure:', JSON.stringify(newVal[0], null, 2));
+      console.log('🔍 Type of preview:', typeof newVal[0]?.preview);
+    }
+  }
+}, { deep: true });
+
+// ============ Rest of existing functions (keep as is) ============
+// [Keep all existing functions below exactly as they were]
+// loadImageWithDimensions, validateFileType, compressAndSquareImage,
+// handleImageSelect, handlePhotoCaptured, openPreviewModal,
+// applyRotationToImage, saveBackupToLocalStorage, clearBackupFromLocalStorage,
+// triggerUploadAndSave, uploadImagesToServer, retryUpload,
+// handleRemovePreviewImage, removeImage, onMounted
+
+// ... [PASTE ALL YOUR EXISTING FUNCTIONS HERE EXACTLY AS THEY WERE]
+// START COPY FROM HERE (your existing functions):
 const loadImageWithDimensions = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -951,7 +1127,6 @@ const removeImage = async (imageObject) => {
 
 // Load backup saat component mounted
 onMounted(() => {
-  // Optional: Load backup images jika ada
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
