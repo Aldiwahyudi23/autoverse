@@ -831,20 +831,23 @@
                                                 $showNote = $pointData['showNote'];
                                                 $showTextarea = $pointData['showTextarea'];
                                                 $displayNotes = $pointData['displayNotes'];
+                                                $formattedStatusArray = implode(', ', $statusArray); // Status dipisahkan koma
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @foreach($statusArray as $status)
-                                                    @php
+                                                @php
+                                                    $statusColors = [];
+                                                    foreach ($statusArray as $status) {
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
                                                             $statusColor = '#dc3545';
                                                         }
-                                                    @endphp
-                                                    <span style="color: {{ $statusColor }};">{{ $status }}</span>
-                                                @endforeach
+                                                        $statusColors[] = $statusColor;
+                                                    }
+                                                @endphp
+                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
                                             @endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
@@ -870,20 +873,23 @@
                                                 $showNote = $pointData['showNote'];
                                                 $showTextarea = $pointData['showTextarea'];
                                                 $displayNotes = $pointData['displayNotes'];
+                                                $formattedStatusArray = implode(', ', $statusArray); // Status dipisahkan koma
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @foreach($statusArray as $status)
-                                                    @php
+                                                @php
+                                                    $statusColors = [];
+                                                    foreach ($statusArray as $status) {
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
                                                             $statusColor = '#dc3545';
                                                         }
-                                                    @endphp
-                                                    <span style="color: {{ $statusColor }};">{{ $status }}</span>
-                                                @endforeach
+                                                        $statusColors[] = $statusColor;
+                                                    }
+                                                @endphp
+                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
                                             @endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
@@ -959,49 +965,57 @@
                             }
                         @endphp
                         
-                        @if($showImages)
+                        @php
+                            $hasImages = $showImages ;
+                            $hasNote = $showTextarea && !empty($result->note);
+                            $shouldShowPoint = $hasImages || $hasNote;
+                        @endphp
+
+                        @if($shouldShowPoint)
                             <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <tr>
                                         <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">{{ $point->inspection_point->name ?? '-' }}</td>
                                     </tr>
                                 </table>
-                                
-                                <div style="margin-top: 10px;">
-                                    <table style="width: 100%; border-collapse: collapse;">
-                                        @php
-                                            $images = $point->inspection_point->images;
-                                            $columns = 5;
-                                            $imageChunks = $images->count() > 0 ? array_chunk($images->all(), $columns) : [[]];
-                                        @endphp
-                                        @foreach($imageChunks as $chunk)
-                                            <tr>
-                                                @foreach($chunk as $img)
-                                                    <td style="width: 20%; text-align: center; padding: 5px;">
-                                                        @if($img->image_path && file_exists(public_path($img->image_path)))
-                                                            <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
-                                                                <img src="{{ public_path($img->image_path) }}" 
-                                                                     alt="{{ $img->point->name ?? 'image' }}" 
-                                                                     style="max-width: 120px; max-height: 120px; object-fit: contain;">
-                                                            </div>
-                                                        @else
-                                                            <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                                                <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
-                                                            </div>
-                                                        @endif
-                                                    </td>
-                                                @endforeach
-                                                @for ($i = count($chunk); $i < $columns; $i++)
-                                                    <td style="width: 20%;">
-                                                        <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
-                                                    </td>
-                                                @endfor
-                                            </tr>
-                                        @endforeach
-                                    </table>
-                                </div>
 
-                                @if ($showTextarea && !empty($result->note))
+                                @if($showImages)
+                                    <div style="margin-top: 10px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            @php
+                                                $images = $point->inspection_point->images;
+                                                $columns = 5;
+                                                $imageChunks = $images->count() > 0 ? array_chunk($images->all(), $columns) : [[]];
+                                            @endphp
+                                            @foreach($imageChunks as $chunk)
+                                                <tr>
+                                                    @foreach($chunk as $img)
+                                                        <td style="width: 20%; text-align: center; padding: 5px;">
+                                                            @if($img->image_path && file_exists(public_path($img->image_path)))
+                                                                <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
+                                                                    <img src="{{ public_path($img->image_path) }}" 
+                                                                        alt="{{ $img->point->name ?? 'image' }}" 
+                                                                        style="max-width: 120px; max-height: 120px; object-fit: contain;">
+                                                                </div>
+                                                            @else
+                                                                <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                                    <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
+                                                                </div>
+                                                            @endif
+                                                        </td>
+                                                    @endforeach
+                                                    @for ($i = count($chunk); $i < $columns; $i++)
+                                                        <td style="width: 20%;">
+                                                            <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
+                                                        </td>
+                                                    @endfor
+                                                </tr>
+                                            @endforeach
+                                        </table>
+                                    </div>
+                                @endif
+
+                                @if ($hasNote)
                                     <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
                                         <strong>Catatan:</strong> {{ $result->note }}
                                     </div>
@@ -1016,6 +1030,7 @@
                     @php
                         $displayPoints = [];
                         $imagesForComponent = []; // Array untuk menyimpan gambar komponen
+                        $notesForComponent = []; // Array untuk menyimpan note komponen tanpa gambar
                         
                         // Kumpulkan semua gambar untuk komponen ini dengan status bukan OK
                         foreach($points as $point) {
@@ -1036,6 +1051,49 @@
                                         'result' => $result
                                     ];
                                 }
+                            }
+                            
+                            // LOGIKA UNTUK NOTE TANPA GAMBAR
+                            $inputType = $point->input_type ?? '';
+                            $selected = $result->status ?? null;
+                            
+                            $statusArray = [];
+                            if (!empty($selected)) {
+                                if (strpos($selected, ',') !== false) {
+                                    $statusArray = array_map('trim', explode(',', $selected));
+                                } else {
+                                    $statusArray = [$selected];
+                                }
+                            }
+                            
+                            $settings = $point->settings ?? [];
+                            
+                            $showTextarea = false;
+                            if (in_array($inputType, ['radio', 'imageTOradio'])) {
+                                foreach ($statusArray as $status) {
+                                    $selectedOption = collect($settings['radios'] ?? [])->firstWhere('value', $status);
+                                    if ($selectedOption['settings']['show_textarea'] ?? false) {
+                                        $showTextarea = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Cek jika ada note yang perlu ditampilkan
+                            $hasNote = !empty($result->note);
+                            $shouldShowNote = ($showTextarea && $hasNote) || 
+                                            (in_array($inputType, ['text', 'number', 'date', 'textarea']) && $hasNote);
+                            
+                            // Jika ada note TANPA gambar, tambahkan ke array notes
+                            if ($shouldShowNote && !$hasImage) {
+                                $notesForComponent[] = [
+                                    'point' => $point,
+                                    'result' => $result,
+                                    'inputType' => $inputType,
+                                    'statusArray' => $statusArray,
+                                    'settings' => $settings,
+                                    'showTextarea' => $showTextarea
+                                ];
                             }
                         }
                         
@@ -1150,20 +1208,23 @@
                                                 $showNote = $pointData['showNote'];
                                                 $showTextarea = $pointData['showTextarea'];
                                                 $displayNotes = $pointData['displayNotes'];
+                                                $formattedStatusArray = implode(', ', $statusArray); // Status dipisahkan koma
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @foreach($statusArray as $status)
-                                                    @php
+                                                @php
+                                                    $statusColors = [];
+                                                    foreach ($statusArray as $status) {
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
                                                             $statusColor = '#dc3545';
                                                         }
-                                                    @endphp
-                                                    <span style="color: {{ $statusColor }};">{{ $status }}</span>
-                                                @endforeach
+                                                        $statusColors[] = $statusColor;
+                                                    }
+                                                @endphp
+                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
                                             @endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
@@ -1189,20 +1250,23 @@
                                                 $showNote = $pointData['showNote'];
                                                 $showTextarea = $pointData['showTextarea'];
                                                 $displayNotes = $pointData['displayNotes'];
+                                                $formattedStatusArray = implode(', ', $statusArray); // Status dipisahkan koma
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @foreach($statusArray as $status)
-                                                    @php
+                                                @php
+                                                    $statusColors = [];
+                                                    foreach ($statusArray as $status) {
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
                                                         } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
                                                             $statusColor = '#dc3545';
                                                         }
-                                                    @endphp
-                                                    <span style="color: {{ $statusColor }};">{{ $status }}</span>
-                                                @endforeach
+                                                        $statusColors[] = $statusColor;
+                                                    }
+                                                @endphp
+                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
                                             @endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
@@ -1272,9 +1336,13 @@
                                         }
                                     }
                                 }
+                                
+                                $hasImages = $showImages && count($images) > 0;
+                                $hasNote = $showTextarea && !empty($result->note);
+                                $shouldShowPoint = $hasImages || $hasNote;
                             @endphp
-                            
-                            @if($showImages && count($images) > 0)
+
+                            @if($shouldShowPoint)
                                 <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                                     <table style="width: 100%; border-collapse: collapse;">
                                         <tr>
@@ -1284,41 +1352,45 @@
                                         </tr>
                                     </table>
                                     
-                                    <div style="margin-top: 10px;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            @php
-                                                $columns = 5;
-                                                $imageChunks = array_chunk($images, $columns);
-                                            @endphp
-                                            @foreach($imageChunks as $chunk)
-                                                <tr>
-                                                    @foreach($chunk as $img)
-                                                        <td style="width: 20%; text-align: center; padding: 5px;">
-                                                            @if($img->image_path && file_exists(public_path($img->image_path)))
-                                                                <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
-                                                                    <img src="{{ public_path($img->image_path) }}" 
-                                                                         alt="{{ $img->point->name ?? 'image' }}" 
-                                                                         style="max-width: 120px; max-height: 120px; object-fit: contain;">
-                                                                </div>
-                                                            @else
-                                                                <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                                                    <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
-                                                                </div>
-                                                            @endif
-                                                        </td>
-                                                    @endforeach
-                                                    @for ($i = count($chunk); $i < $columns; $i++)
-                                                        <td style="width: 20%;">
-                                                            <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
-                                                        </td>
-                                                    @endfor
-                                                </tr>
-                                            @endforeach
-                                        </table>
-                                    </div>
+                                    <!-- Bagian untuk gambar -->
+                                    @if($hasImages)
+                                        <div style="margin-top: 10px;">
+                                            <table style="width: 100%; border-collapse: collapse;">
+                                                @php
+                                                    $columns = 5;
+                                                    $imageChunks = array_chunk($images, $columns);
+                                                @endphp
+                                                @foreach($imageChunks as $chunk)
+                                                    <tr>
+                                                        @foreach($chunk as $img)
+                                                            <td style="width: 20%; text-align: center; padding: 5px;">
+                                                                @if($img->image_path && file_exists(public_path($img->image_path)))
+                                                                    <div style="border: 1px solid #ddd; padding: 3px; background-color: #fff; display: inline-block;">
+                                                                        <img src="{{ public_path($img->image_path) }}" 
+                                                                            alt="{{ $img->point->name ?? 'image' }}" 
+                                                                            style="max-width: 120px; max-height: 120px; object-fit: contain;">
+                                                                    </div>
+                                                                @else
+                                                                    <div style="border: 1px dashed #ccc; padding: 15px; background-color: #f9f9f9; width: 120px; height: 120px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                                        <span style="font-size: 10px; color: #888;">Gambar tidak ditemukan</span>
+                                                                    </div>
+                                                                @endif
+                                                            </td>
+                                                        @endforeach
+                                                        @for ($i = count($chunk); $i < $columns; $i++)
+                                                            <td style="width: 20%;">
+                                                                <div style="width: 120px; height: 120px; margin: 0 auto;"></div>
+                                                            </td>
+                                                        @endfor
+                                                    </tr>
+                                                @endforeach
+                                            </table>
+                                        </div>
+                                    @endif
 
-                                    @if ($showTextarea && !empty($result->note))
-                                        <div style="margin: 10px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                                    <!-- Bagian untuk catatan -->
+                                    @if($hasNote)
+                                        <div style="margin: {{ $hasImages ? '10px 0 4px 0' : '4px 0 4px 0' }}; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
                                             <strong>Catatan:</strong> {{ $result->note }}
                                         </div>
                                     @endif
@@ -1326,7 +1398,36 @@
                             @endif
                         @endforeach
                     @endif
+
+                    {{-- NOTE TANPA GAMBAR UNTUK KOMPONEN --}}
+                    @if(count($notesForComponent) > 0)
+                        @foreach($notesForComponent as $noteData)
+                            @php
+                                $point = $noteData['point'];
+                                $result = $noteData['result'];
+                                $hasNote = !empty($result->note);
+                            @endphp
+
+                            @if($hasNote)
+                                <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <tr>
+                                            <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">
+                                                {{ $point->inspection_point->name ?? '-' }}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <!-- Bagian untuk catatan saja -->
+                                    <div style="margin: 4px 0 4px 0; font-style: italic; color: #555; font-size: 12px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                                        <strong>Catatan:</strong> {{ $result->note }}
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach
+                    @endif
                 @endif
+                
             </div>
         </div>
     @endif
