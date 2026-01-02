@@ -1,5 +1,6 @@
-- [x] Update CSS for camera-controls to center capture button and position side buttons absolutely
-- [x] Add classes to flash and switch buttons for positioning
-- [x] Improve video constraints for better quality (higher resolution, frame rate)
-- [x] Add touch focus functionality with indicator
-- [x] Test the changes
+- [ ] Import RepairEstimationModal in ReviewPDF.vue
+- [ ] Add reactive refs for modal state and selected estimation data
+- [ ] Add a function to open the modal with pre-filled part name
+- [ ] Add the button conditionally in the point display section
+- [ ] Add the modal component to the template
+- [ ] Handle the saved estimation by adding it to the repairEstimations array

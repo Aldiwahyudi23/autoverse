@@ -49,32 +49,66 @@
             <!-- Urgency and Status -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
                   Urgensi <span class="text-red-500">*</span>
                 </label>
-                <select
-                  v-model="form.urgency"
-                  required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="segera">Segera</option>
-                  <option value="jangka_panjang">Jangka Panjang</option>
-                </select>
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="form.urgency"
+                      value="segera"
+                      required
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    >
+                    <span class="ml-2 text-sm text-gray-700">Segera</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="form.urgency"
+                      value="jangka_panjang"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    >
+                    <span class="ml-2 text-sm text-gray-700">Jangka Panjang</span>
+                  </label>
+                </div>
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
                   Status <span class="text-red-500">*</span>
                 </label>
-                <select
-                  v-model="form.status"
-                  required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="perlu">Perlu</option>
-                  <option value="disarankan">Disarankan</option>
-                  <option value="opsional">Opsional</option>
-                </select>
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="form.status"
+                      value="perlu"
+                      required
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    >
+                    <span class="ml-2 text-sm text-gray-700">Perlu</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="form.status"
+                      value="disarankan"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    >
+                    <span class="ml-2 text-sm text-gray-700">Disarankan</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="form.status"
+                      value="opsional"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    >
+                    <span class="ml-2 text-sm text-gray-700">Opsional</span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -186,7 +220,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, defineEmits } from 'vue'
+import { ref, reactive, computed, defineEmits, watch } from 'vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -267,10 +301,12 @@ const handleCostBlur = (event) => {
   }
 }
 
-// Load data for edit
-if (props.estimationData && props.showModal) {
-  Object.assign(form, props.estimationData)
-}
+// Watch for estimationData changes to populate form
+watch(() => props.estimationData, (newData) => {
+  if (newData) {
+    Object.assign(form, newData)
+  }
+}, { immediate: true })
 
 // Save estimation
 const saveEstimation = async () => {
@@ -345,4 +381,15 @@ const closeModal = () => {
   resetForm()
   emit('close')
 }
+
+// Watch for showModal to handle opening with data
+watch(() => props.showModal, (isVisible) => {
+  if (isVisible && props.estimationData) {
+    // When modal opens with estimation data, populate the form
+    Object.assign(form, props.estimationData)
+  } else if (isVisible && !props.estimationData) {
+    // When modal opens without data (new estimation), reset form
+    resetForm()
+  }
+})
 </script>

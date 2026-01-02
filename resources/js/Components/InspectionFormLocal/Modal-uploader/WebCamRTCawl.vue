@@ -14,7 +14,6 @@
         class="webcam-video-container"
         :style="videoContainerStyle"
         @touchstart="handleTouchFocus"
-        @click="handleTouchFocus"
       >
         <video 
           ref="webcamVideo" 
@@ -30,7 +29,7 @@
         </div>
 
         <!-- Auto Focus Indicator -->
-        <div v-if="showAutoFocus && !showFocusIndicator" class="auto-focus-indicator">
+        <div v-if="showAutoFocus" class="auto-focus-indicator">
           <div class="auto-focus-ring"></div>
         </div>
 
@@ -93,18 +92,8 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 
 const props = defineProps({
   show: Boolean,
-  aspectRatio: {
-    type: Number,
-    default: 4/3
-  },
-  settings: {
-    type: Object,
-    default: () => ({
-      enable_flash: true,
-      enable_camera_switch: true,
-      max_size: 2048
-    })
-  },
+  aspectRatio: Number,
+  settings: Object,
   point: Object
 });
 const emit = defineEmits(['close', 'photoCaptured']);
@@ -112,9 +101,11 @@ const emit = defineEmits(['close', 'photoCaptured']);
 const webcamVideo = ref(null);
 const webcamCanvas = ref(null);
 
-// Camera State
+// RTC State Management
 let mediaStream = null;
 let videoTrack = null;
+
+// Camera State
 const currentFacingMode = ref('environment');
 const currentDeviceId = ref(null);
 const cameraDevices = ref([]);
@@ -124,7 +115,6 @@ const isFlashOn = ref(false);
 const isTakingPhoto = ref(false);
 const isLoading = ref(false);
 const error = ref(null);
-const cameraCapabilities = ref(null);
 
 // Auto Focus
 const showFocusIndicator = ref(false);
@@ -132,7 +122,13 @@ const showAutoFocus = ref(true);
 const focusIndicatorStyle = ref({});
 
 // Computed Properties
+const maxSizeKB = computed(() => {
+  return props.settings?.max_size || 2048;
+});
+
 const videoContainerStyle = computed(() => {
+  if (!props.aspectRatio) return {};
+  
   return {
     aspectRatio: `${props.aspectRatio} / 1`,
     maxWidth: '100%',
@@ -141,147 +137,70 @@ const videoContainerStyle = computed(() => {
   };
 });
 
-// Adaptive Camera Initialization
+// Ultra Fast Camera Initialization - Instant Display
 const initializeWebcam = async () => {
   if (mediaStream) {
     mediaStream.getTracks().forEach(track => track.stop());
   }
 
   error.value = null;
-  isLoading.value = true;
 
   try {
-    // STRATEGI 1: Coba dengan resolusi optimal untuk pengambilan foto
-    const constraints = getOptimalConstraints();
-    
-    console.log('Mencoba inisialisasi kamera dengan:', constraints);
-    
+    // INSTANT: Get camera stream first without any device enumeration
+    const videoConstraints = {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 3840, min: 1280 }, // Try 4K, fallback to HD
+      height: { ideal: 2160, min: 720 }, // Try 4K, fallback to HD
+      frameRate: { ideal: 30, min: 15 } // Smooth frame rate
+    };
+
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: constraints,
+      video: videoConstraints,
       audio: false
     });
 
     videoTrack = mediaStream.getVideoTracks()[0];
     webcamVideo.value.srcObject = mediaStream;
 
-    // Tunggu sampai video siap
-    await new Promise((resolve, reject) => {
-      webcamVideo.value.onloadedmetadata = resolve;
-      webcamVideo.value.onerror = reject;
-      setTimeout(resolve, 1000); // Fallback timeout
-    });
-
+    // INSTANT: Start playing immediately
     await webcamVideo.value.play();
-    
-    // Dapatkan kemampuan kamera setelah berhasil
-    await checkCameraCapabilities();
-    
-    // Setup auto-focus dan pencahayaan otomatis
-    setupAutoFocusAndExposure();
-    
-    // Dapatkan daftar perangkat secara async
+
+    // BACKGROUND: Load additional features asynchronously (doesn't block UI)
     setTimeout(async () => {
       try {
         await getCameraDevices();
+        await checkCameraCapabilities();
+        startAutoFocusIndicator();
       } catch (err) {
-        console.warn("Gagal mendapatkan daftar perangkat:", err);
+        console.warn("Background camera setup failed:", err);
       }
-    }, 500);
-    
+    }, 100);
+
+  } catch (err) {
+    console.error("Error accessing camera: ", err);
+    error.value = getErrorMessage(err);
     isLoading.value = false;
-    console.log('Kamera berhasil diinisialisasi');
-
-  } catch (err) {
-    console.error("Error mengakses kamera: ", err);
-    
-    // STRATEGI 2: Fallback ke resolusi minimal jika gagal
-    if (!mediaStream) {
-      try {
-        console.log('Mencoba fallback ke resolusi minimal...');
-        const fallbackConstraints = {
-          video: {
-            facingMode: currentFacingMode.value,
-            width: { min: 640, ideal: 1280 },
-            height: { min: 480, ideal: 720 }
-          }
-        };
-        
-        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-        videoTrack = mediaStream.getVideoTracks()[0];
-        webcamVideo.value.srcObject = mediaStream;
-        await webcamVideo.value.play();
-        isLoading.value = false;
-        console.log('Fallback berhasil');
-      } catch (fallbackErr) {
-        console.error("Fallback juga gagal:", fallbackErr);
-        error.value = getErrorMessage(fallbackErr);
-        isLoading.value = false;
-      }
-    }
   }
 };
 
-// Fungsi untuk mendapatkan constraints optimal berdasarkan kemampuan perangkat
-const getOptimalConstraints = () => {
-  // Prioritas: kamera belakang dengan auto-focus dan exposure
-  const baseConstraints = {
-    facingMode: { ideal: 'environment' },
-    // Resolusi untuk pengambilan foto yang baik
-    width: { ideal: 1920, max: 1920, min: 1280 },
-    height: { ideal: 1080, max: 1080, min: 720 },
-    // Pengaturan untuk fokus dan pencahayaan otomatis
-    focusMode: { ideal: ['continuous', 'single-shot', 'manual'] },
-    exposureMode: { ideal: ['continuous', 'manual'] },
-    whiteBalanceMode: { ideal: ['continuous', 'manual'] }
-  };
-
-  return baseConstraints;
-};
-
-// Setup auto-focus dan exposure otomatis
-const setupAutoFocusAndExposure = async () => {
-  if (!videoTrack) return;
+// Auto focus indicator animation
+const startAutoFocusIndicator = () => {
+  let focusState = true;
   
-  try {
-    const capabilities = videoTrack.getCapabilities();
-    cameraCapabilities.value = capabilities;
+  const animateFocus = () => {
+    if (!mediaStream) return;
     
-    // Coba atur auto-focus dan auto-exposure jika didukung
-    const supportsAutoFocus = capabilities.focusMode && 
-      (capabilities.focusMode.includes('continuous') || capabilities.focusMode.includes('single-shot'));
+    showAutoFocus.value = focusState;
+    focusState = !focusState;
     
-    const supportsAutoExposure = capabilities.exposureMode && 
-      capabilities.exposureMode.includes('continuous');
-    
-    if (supportsAutoFocus || supportsAutoExposure) {
-      const constraints = {};
-      
-      if (supportsAutoFocus) {
-        constraints.focusMode = 'continuous';
-      }
-      
-      if (supportsAutoExposure) {
-        constraints.exposureMode = 'continuous';
-        constraints.exposureCompensation = { ideal: 0 }; // Netral
-      }
-      
-      if (Object.keys(constraints).length > 0) {
-        await videoTrack.applyConstraints({ advanced: [constraints] });
-        console.log('Auto-focus/exposure diaktifkan');
-      }
-    }
-    
-    // Cek dukungan flash
-    isFlashSupported.value = !!capabilities.torch || !!capabilities.fillLightMode;
-    
-  } catch (err) {
-    console.warn("Tidak bisa mengatur auto-focus/exposure:", err);
-  }
+    setTimeout(animateFocus, focusState ? 2000 : 500);
+  };
+  
+  animateFocus();
 };
 
 const getCameraDevices = async () => {
   try {
-    // Gunakan stream sementara untuk enumerasi
     const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
     tempStream.getTracks().forEach(track => track.stop());
     
@@ -289,7 +208,6 @@ const getCameraDevices = async () => {
     cameraDevices.value = devices.filter(d => d.kind === 'videoinput');
     hasMultipleCameras.value = cameraDevices.value.length > 1;
     
-    // Set device ID default jika belum ada
     if (!currentDeviceId.value && cameraDevices.value.length > 0) {
       const rearCamera = cameraDevices.value.find(device => 
         device.label.toLowerCase().includes('back') || 
@@ -299,7 +217,7 @@ const getCameraDevices = async () => {
       currentDeviceId.value = rearCamera ? rearCamera.deviceId : cameraDevices.value[0].deviceId;
     }
   } catch (err) {
-    console.warn('Error getting camera devices:', err);
+    console.error('Error getting camera devices:', err);
   }
 };
 
@@ -313,30 +231,19 @@ const getErrorMessage = (error) => {
       return 'Browser tidak mendukung akses kamera.';
     case 'NotReadableError':
       return 'Kamera sedang digunakan oleh aplikasi lain.';
-    case 'OverconstrainedError':
-      return 'Perangkat tidak mendukung pengaturan kamera yang diminta.';
     default:
       return `Tidak dapat mengakses kamera: ${error.message}`;
   }
 };
 
-const checkCameraCapabilities = () => {
+const checkCameraCapabilities = async () => {
   if (!videoTrack) return;
   
   try {
     const capabilities = videoTrack.getCapabilities();
-    cameraCapabilities.value = capabilities;
-    isFlashSupported.value = !!capabilities.torch || !!capabilities.fillLightMode;
-    
-    console.log('Kamera mendukung:', {
-      maxRes: `${capabilities.width?.max || 'N/A'}x${capabilities.height?.max || 'N/A'}`,
-      torch: capabilities.torch,
-      focusModes: capabilities.focusMode,
-      exposureModes: capabilities.exposureMode
-    });
-    
-  } catch (err) {
-    console.warn("Tidak bisa mendapatkan kemampuan kamera:", err);
+    isFlashSupported.value = !!capabilities.torch;
+  } catch (error) {
+    console.error("Error checking camera capabilities:", error);
   }
 };
 
@@ -344,20 +251,16 @@ const toggleFlash = async () => {
   if (!videoTrack || !isFlashSupported.value) return;
   
   try {
-    // Hanya gunakan flash untuk kamera belakang
-    if (currentFacingMode.value === 'environment') {
+    if (currentFacingMode.value === 'user') {
+      isFlashOn.value = !isFlashOn.value;
+    } else {
       await videoTrack.applyConstraints({ 
         advanced: [{ torch: !isFlashOn.value }] 
       });
       isFlashOn.value = !isFlashOn.value;
-    } else {
-      // Untuk kamera depan, matikan flash di UI
-      console.log('Flash tidak didukung untuk kamera depan');
-      isFlashOn.value = false;
     }
   } catch (err) {
-    console.error("Gagal mengontrol flash:", err);
-    isFlashOn.value = false;
+    console.error("Flash toggle failed:", err);
   }
 };
 
@@ -380,57 +283,7 @@ const switchCamera = async () => {
   await initializeWebcam();
 };
 
-// Fokus manual saat tap/klik
-const handleTouchFocus = async (event) => {
-  if (!webcamVideo.value || !videoTrack) return;
-
-  const rect = event.currentTarget.getBoundingClientRect();
-  const x = event.type.includes('mouse') ? event.clientX - rect.left : event.touches[0].clientX - rect.left;
-  const y = event.type.includes('mouse') ? event.clientY - rect.top : event.touches[0].clientY - rect.top;
-
-  // Tampilkan indikator fokus
-  showFocusIndicator.value = true;
-  focusIndicatorStyle.value = {
-    left: `${x - 40}px`,
-    top: `${y - 40}px`
-  };
-
-  // Sembunyikan setelah animasi
-  setTimeout(() => {
-    showFocusIndicator.value = false;
-  }, 1000);
-
-  // Coba atur fokus manual pada titik yang di-tap
-  try {
-    const capabilities = videoTrack.getCapabilities();
-    
-    if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
-      // Hitung posisi relatif (0-1)
-      const relativeX = x / rect.width;
-      const relativeY = y / rect.height;
-      
-      // Untuk perangkat yang mendukung, atur area fokus
-      if (capabilities.focusDistance && capabilities.pan && capabilities.tilt) {
-        // Simulasi fokus pada titik tertentu
-        await videoTrack.applyConstraints({
-          advanced: [{ 
-            focusMode: 'manual',
-            focusDistance: 0.3, // Jarak fokus sedang
-            pointsOfInterest: [{x: relativeX, y: relativeY}]
-          }]
-        });
-      }
-    } else if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
-      // Trigger single-shot auto-focus
-      await videoTrack.applyConstraints({
-        advanced: [{ focusMode: 'single-shot' }]
-      });
-    }
-  } catch (error) {
-    console.warn("Penyesuaian fokus tidak didukung:", error);
-  }
-};
-
+// Ultra Fast Photo Capture - Full Auto
 const capturePhoto = async () => {
   if (isTakingPhoto.value || !webcamVideo.value || !webcamCanvas.value) return;
   
@@ -440,23 +293,20 @@ const capturePhoto = async () => {
     const video = webcamVideo.value;
     const canvas = webcamCanvas.value;
     
-    // Tunggu frame stabil
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     
-    // Hitung crop berdasarkan aspect ratio
+    // Fast crop calculation based on aspect ratio
     let sw, sh, sx, sy;
     
     if (vw / vh > props.aspectRatio) {
-      // Video lebih lebar
+      // Video lebih lebar dari aspect ratio yang diinginkan
       sh = vh;
       sw = vh * props.aspectRatio;
       sx = (vw - sw) / 2;
       sy = 0;
     } else {
-      // Video lebih tinggi
+      // Video lebih tinggi dari aspect ratio yang diinginkan
       sw = vw;
       sh = vw / props.aspectRatio;
       sx = 0;
@@ -468,91 +318,65 @@ const capturePhoto = async () => {
     
     const ctx = canvas.getContext('2d');
     
-    // Ambil gambar dengan kualitas tinggi
+    // Ultra fast capture - langsung ambil frame
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
-    // Kompresi gambar dengan kualitas optimal
-    const quality = Math.min(0.95, 0.7 + (vw * vh) / (3840 * 2160) * 0.25); // Adaptif berdasarkan resolusi
-    
+    // Fast compression dengan quality optimal
     const blob = await new Promise(resolve => {
-      canvas.toBlob(resolve, 'image/jpeg', quality);
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
     });
     
     if (blob) {
-      // Cek ukuran file
-      if (blob.size / 1024 > props.settings.max_size) {
-        // Kompres ulang dengan kualitas lebih rendah jika terlalu besar
-        const resizedBlob = await resizeImageBlob(blob, props.settings.max_size);
-        const fileName = `inspeksi_${props.point?.name || 'foto'}_${Date.now()}.jpg`;
-        const file = new File([resizedBlob], fileName, { 
-          type: 'image/jpeg',
-          lastModified: Date.now()
-        });
-        
-        emit('photoCaptured', file);
-      } else {
-        const fileName = `inspeksi_${props.point?.name || 'foto'}_${Date.now()}.jpg`;
-        const file = new File([blob], fileName, { 
-          type: 'image/jpeg',
-          lastModified: Date.now()
-        });
-        
-        emit('photoCaptured', file);
-      }
+      const fileName = `inspeksi_${props.point?.name || 'foto'}_${Date.now()}.jpg`;
+      const file = new File([blob], fileName, { 
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      });
+      
+      emit('photoCaptured', file);
     }
     
   } catch (error) {
-    console.error("Error mengambil foto:", error);
+    console.error("Error capturing photo:", error);
   } finally {
     isTakingPhoto.value = false;
   }
 };
 
-// Fungsi untuk resize gambar jika terlalu besar
-const resizeImageBlob = async (blob, maxSizeKB) => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-      
-      // Kurangi ukuran jika perlu
-      const maxDimension = 1920;
-      if (width > maxDimension || height > maxDimension) {
-        if (width > height) {
-          height = (height * maxDimension) / width;
-          width = maxDimension;
-        } else {
-          width = (width * maxDimension) / height;
-          height = maxDimension;
-        }
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // Kompres dengan kualitas menurun secara bertahap
-      let quality = 0.9;
-      const tryCompress = () => {
-        canvas.toBlob((compressedBlob) => {
-          if (compressedBlob.size / 1024 <= maxSizeKB || quality <= 0.3) {
-            resolve(compressedBlob);
-          } else {
-            quality -= 0.1;
-            tryCompress();
-          }
-        }, 'image/jpeg', quality);
-      };
-      
-      tryCompress();
-    };
-    
-    img.src = URL.createObjectURL(blob);
-  });
+const handleTouchFocus = (event) => {
+  if (!webcamVideo.value || !videoTrack) return;
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.touches[0].clientX - rect.left;
+  const y = event.touches[0].clientY - rect.top;
+
+  // Calculate relative position (0-1)
+  const relativeX = x / rect.width;
+  const relativeY = y / rect.height;
+
+  // Show focus indicator
+  showFocusIndicator.value = true;
+  focusIndicatorStyle.value = {
+    left: `${x - 40}px`, // Center the 80px indicator
+    top: `${y - 40}px`
+  };
+
+  // Hide indicator after animation
+  setTimeout(() => {
+    showFocusIndicator.value = false;
+  }, 800);
+
+  // Try to apply focus constraints if supported
+  try {
+    const capabilities = videoTrack.getCapabilities();
+    if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+      videoTrack.applyConstraints({
+        advanced: [{ focusMode: 'manual', focusDistance: 0.5 }] // Fixed focus distance
+      });
+    }
+  } catch (error) {
+    console.warn("Focus adjustment not supported:", error);
+  }
 };
 
 const closeModal = () => {
@@ -573,9 +397,7 @@ watch(() => props.show, async (v) => {
     await nextTick();
     await initializeWebcam();
   } else {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop());
-    }
+    closeModal();
   }
 });
 
@@ -630,7 +452,6 @@ onUnmounted(() => {
   background: #000;
   overflow: hidden;
   margin: 0 auto;
-  touch-action: manipulation;
 }
 
 .webcam-video {
@@ -679,12 +500,6 @@ onUnmounted(() => {
   height: 80px;
   z-index: 15;
   pointer-events: none;
-  animation: focusAppear 0.3s ease-out;
-}
-
-@keyframes focusAppear {
-  0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
 }
 
 .focus-ring {
@@ -693,13 +508,13 @@ onUnmounted(() => {
   border: 3px solid #00ff00;
   border-radius: 50%;
   background: rgba(0, 255, 0, 0.1);
-  animation: focusPulse 1s ease-out;
+  animation: focusPulse 0.8s ease-out;
 }
 
 @keyframes focusPulse {
-  0% { transform: scale(0.8); opacity: 1; }
+  0% { transform: scale(0.5); opacity: 0; }
   50% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* Footer Controls */

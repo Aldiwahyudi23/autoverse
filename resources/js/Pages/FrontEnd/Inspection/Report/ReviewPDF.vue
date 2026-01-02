@@ -174,15 +174,26 @@
                 <template v-if="hasResult(point)">
                   <!-- Badge Status (mendukung array dan string) -->
                   <div v-if="shouldShowStatusBadge(point)" class="status-badges-container">
-                    <span 
-                      v-for="status in getStatusArray(point)" 
+                    <span
+                      v-for="status in getStatusArray(point)"
                       :key="status"
                       :class="['status-badge', getStatusClass(status)]"
                     >
                       {{ status.trim() }}
                     </span>
+                    <!-- Button to add repair estimation -->
+                    <button
+                      v-if="canEditEstimations && hasBadStatus(point) && group.component.name !== 'Dokumen'"
+                      @click="openEstimationModal(point)"
+                      class="ml-2 bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600 transition-colors inline-flex items-center"
+                      title="Tambah Estimasi Perbaikan"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </button>
                   </div>
-                  
+
                   <!-- Catatan (Note) -->
                   <div v-if="shouldShowNote(point)" class="point-note italic text-gray-600 my-1">
                     {{ formatNote(point) }}
@@ -281,12 +292,12 @@
     </div>
 
     <!-- Full Screen Image Viewer Modal - SEDERHANA -->
-    <div v-if="showImageModal" 
+    <div v-if="showImageModal"
          class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
          @click="closeImageModal">
-      
+
       <div class="relative w-full h-full flex items-center justify-center p-4">
-        
+
         <!-- Close Button -->
         <button
           @click="closeImageModal"
@@ -296,7 +307,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        
+
         <!-- Gambar Besar -->
         <img
           v-if="currentImageUrl"
@@ -305,13 +316,23 @@
           class="max-w-[90vw] max-h-[90vh] w-auto h-auto object-contain"
           @click.stop
         />
-        
+
         <div v-else class="text-white text-lg">
           Gambar tidak dapat dimuat
         </div>
-        
+
       </div>
     </div>
+
+    <!-- Repair Estimation Modal -->
+    <RepairEstimationModal
+      :showModal="showEstimationModal"
+      :estimationData="selectedEstimationData"
+      :inspectionId="inspection.id"
+      :encryptedIds="encryptedIds"
+      @close="closeEstimationModal"
+      @saved="handleEstimationSaved"
+    />
   </div>
 </template>
 
@@ -320,6 +341,7 @@ import { computed, ref, onMounted } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import axios from "axios"
 import RepairEstimationSection from '@/Components/InspectionFormLocal/RepairEstimationSection.vue'
+import RepairEstimationModal from '@/Components/InspectionFormLocal/RepairEstimationModal.vue'
 
 const props = defineProps({
   inspection: {
@@ -350,6 +372,10 @@ const showConfirmationModal = ref(false)
 const isLoading = ref(false)
 const repairEstimations = ref(props.repairEstimations)
 const totalRepairCost = ref(props.totalRepairCost)
+
+// Repair estimation modal state
+const showEstimationModal = ref(false)
+const selectedEstimationData = ref(null)
 
 // Role checking
 const userRoles = computed(() => page.props.global?.has_roles || [])
@@ -409,6 +435,32 @@ const updateEstimations = (newEstimations) => {
 
 const updateTotalCost = (newTotal) => {
   totalRepairCost.value = newTotal
+}
+
+// Function to open estimation modal with pre-filled part name`
+const openEstimationModal = (point) => {
+  selectedEstimationData.value = {
+    part_name: point.inspection_point?.name || '',
+    repair_description: '',
+    urgency: 'segera',
+    status: 'perlu',
+    estimated_cost: 0,
+    notes: ''
+  }
+  showEstimationModal.value = true
+}
+
+// Function to close estimation modal
+const closeEstimationModal = () => {
+  showEstimationModal.value = false
+  selectedEstimationData.value = null
+}
+
+// Function to handle saved estimation
+const handleEstimationSaved = (estimation) => {
+  // Add the new estimation to the repairEstimations array
+  repairEstimations.value.push(estimation)
+  closeEstimationModal()
 }
 
 const groupedPoints = computed(() => {
@@ -558,15 +610,23 @@ const shouldShowTextarea = (point) => {
 
 const getStatusClass = (status) => {
   if (!status) return 'status-warning'
-  
+
   const statusStr = String(status).toLowerCase().trim()
-  
+
   if (['normal', 'ada', 'baik', 'good', 'ok'].includes(statusStr)) {
     return 'status-good'
   } else if (['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'].includes(statusStr)) {
     return 'status-bad'
   }
   return 'status-warning'
+}
+
+const hasBadStatus = (point) => {
+  const statusArray = getStatusArray(point)
+  return statusArray.some(status => {
+    const statusStr = String(status).toLowerCase().trim()
+    return !['normal', 'ada', 'baik', 'good', 'ok'].includes(statusStr)
+  })
 }
 
 const formatNote = (point) => {
