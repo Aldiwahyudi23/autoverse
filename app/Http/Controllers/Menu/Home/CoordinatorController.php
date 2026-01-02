@@ -189,7 +189,9 @@ class CoordinatorController extends Controller
         $region   = Region::find($regionId);
 
         // [ADMIN ADD] Cek role admin
-        $isAdmin = $user->hasRole('Admin');
+  // MENJADI INI:
+        $isAdmin = $user->hasRole('Admin') || $user->hasRole('coordinator');
+    
 
         // Filters
         $filters = $request->only(['status', 'dateRange', 'search', 'perPage', 'region_id', 'user_id']);

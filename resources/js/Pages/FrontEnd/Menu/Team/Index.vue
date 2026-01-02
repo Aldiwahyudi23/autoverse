@@ -6,7 +6,11 @@
             <!-- Header dengan Tombol Tambah User -->
             <div class="mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="text-center">
-                    <h1 class="text-2xl font-bold text-gray-900">Tim {{ userRegion.name }}</h1>
+                    <h1 class="text-2xl font-bold text-gray-900">
+                        <!-- Judul dinamis berdasarkan role -->
+                        <span v-if="isAdminOrCoordinator">Manajemen Tim Semua Wilayah</span>
+                        <span v-else>Tim {{ userRegion.name }}</span>
+                    </h1>
                 </div>
 
                 <!-- Tombol Tambah User (Hanya untuk Admin/Coordinator) -->
@@ -61,16 +65,102 @@
                 </div>
             </div>
 
-            <!-- Section Anggota Team dalam Region yang Sama -->
+            <!-- Section Anggota Team -->
             <div class="bg-white rounded-lg shadow-md overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Anggota Tim</h3>
-                    <p class="text-sm text-gray-600 mt-1">Daftar anggota</p>
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-900">Anggota Tim</h3>
+                            <p class="text-sm text-gray-600 mt-1">
+                                <span v-if="isAdminOrCoordinator">
+                                    Menampilkan {{ filteredTeamMembers.length }} dari {{ allTeamMembers.length }} anggota
+                                    <span v-if="selectedRegionFilter">di wilayah {{ selectedRegionFilterText }}</span>
+                                </span>
+                                <span v-else>Daftar anggota di wilayah {{ userRegion.name }}</span>
+                            </p>
+                        </div>
+                        
+                        <!-- Export Button (Admin/Coordinator) -->
+                        <button
+                            v-if="isAdminOrCoordinator && filteredTeamMembers.length > 0"
+                            @click="exportToExcel"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center text-sm"
+                        >
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Export Excel
+                        </button>
+                    </div>
                 </div>
 
                 <div class="p-4">
                     <!-- Filter dan Pencarian (Hanya untuk Admin/Coordinator) -->
-                    <div v-if="canAddUser" class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div v-if="isAdminOrCoordinator" class="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <!-- Filter Region -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter Wilayah</label>
+                            <select
+                                v-model="selectedRegionFilter"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="">Semua Wilayah</option>
+                                <option v-for="region in allRegions" :key="region.id" :value="region.id">
+                                    {{ region.name }} ({{ region.code }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Pencarian Nama/Email -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Cari Anggota</label>
+                            <div class="relative">
+                                <input
+                                    v-model="searchQuery"
+                                    type="text"
+                                    placeholder="Nama atau email..."
+                                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filter Status -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                            <select
+                                v-model="statusFilter"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="">Semua Status</option>
+                                <option value="active">Aktif</option>
+                                <option value="inactive">Tidak Aktif</option>
+                                <option value="paused">Menunggu Persetujuan</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter Role -->
+                        <!-- <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Posisi</label>
+                            <select
+                                v-model="roleFilter"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="">Semua Posisi</option>
+                                <option value="inspector">Inspector</option>
+                                <option value="quality_control">QC</option>
+                                <option value="admin_plann">Admin Planning</option>
+                                <option disabled value="admin_region">Admin Wilayah</option>
+                            </select>
+                        </div> -->
+                    </div>
+
+                    <!-- Filter untuk Non-Admin (jika diperlukan) -->
+                    <div v-else-if="canAddUser" class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div class="relative flex-1 max-w-md">
                             <input
                                 v-model="searchQuery"
@@ -113,7 +203,7 @@
                                 v-if="canAddUser"
                                 class="absolute top-2 right-2"
                             >
-                                <a :href="route('setting.team',member.id)" class="text-gray-400 hover:text-indigo-600 transition" title="Pengaturan Tim">
+                                <a :href="route('setting.team', member.id)" class="text-gray-400 hover:text-indigo-600 transition" title="Pengaturan Tim">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.223 2.572-1.065z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -144,7 +234,7 @@
                                     </h4>
                                     <p class="text-sm text-gray-600 truncate">{{ member.user.email }}</p>
 
-                                    <div class="flex items-center mt-1 space-x-3">
+                                    <div class="flex items-center mt-1 space-x-2">
                                         <span class="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full capitalize">
                                             {{ member.user.roles[0] || 'N/A' }}
                                         </span>
@@ -157,6 +247,17 @@
                                             }"
                                         >
                                             {{ getStatusText(member.status) }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Tampilkan Region (Hanya untuk Admin/Coordinator) -->
+                                    <div v-if="isAdminOrCoordinator" class="mt-2">
+                                        <span class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full flex items-center w-fit">
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                            {{ getRegionName(member.region_id) }}
                                         </span>
                                     </div>
                                 </div>
@@ -190,124 +291,142 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                         <p class="mt-4 text-gray-500">
-                            {{ searchQuery || statusFilter ? 'Tidak ada anggota yang sesuai dengan filter' : 'Tidak ada anggota team dalam region ini' }}
+                            {{ searchQuery || statusFilter || selectedRegionFilter || roleFilter ? 'Tidak ada anggota yang sesuai dengan filter' : 'Tidak ada anggota team' }}
                         </p>
                         <button
-                            v-if="searchQuery || statusFilter"
+                            v-if="searchQuery || statusFilter || selectedRegionFilter || roleFilter"
                             @click="clearFilters"
                             class="mt-3 px-4 py-2 text-sm text-indigo-600 hover:text-indigo-800 transition"
                         >
-                            Hapus Filter
+                            Hapus Semua Filter
                         </button>
                     </div>
                 </div>
             </div>
 
-<!-- Modal Tambah User -->
-<div v-if="showAddUserModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-lg max-w-md w-full p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Tambah Anggota Baru</h3>
+            <!-- Modal Tambah User -->
+            <div v-if="showAddUserModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-lg max-w-md w-full p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Tambah Anggota Baru</h3>
 
-        <div v-if="message.text"
-             :class="{ 'bg-green-100 text-green-700': !message.isError, 'bg-red-100 text-red-700': message.isError }"
-             class="p-3 rounded-lg text-center mb-4 transition-all duration-300 ease-in-out">
-            {{ message.text }}
-        </div>
+                    <div v-if="message.text"
+                         :class="{ 'bg-green-100 text-green-700': !message.isError, 'bg-red-100 text-red-700': message.isError }"
+                         class="p-3 rounded-lg text-center mb-4 transition-all duration-300 ease-in-out">
+                        {{ message.text }}
+                    </div>
 
-        <form @submit.prevent="submitNewUser" >
-            <!-- Nama -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Nama Lengkap <span class="text-red-500">*</span>
-                </label>
-                <input
-                    v-model="newUserForm.name"
-                    type="text"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Masukkan nama lengkap"
-                >
+                    <form @submit.prevent="submitNewUser">
+                        <!-- Nama -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Nama Lengkap <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="newUserForm.name"
+                                type="text"
+                                required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Masukkan nama lengkap"
+                            >
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="newUserForm.email"
+                                type="email"
+                                required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Masukkan alamat email"
+                            >
+                            <p v-if="newUserForm.email && !isEmailValid" class="text-xs text-red-500 mt-1">
+                                Format email tidak valid
+                            </p>
+                        </div>
+
+                        <!-- Nomor Telepon -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Nomor WhatsApp <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="newUserForm.phone"
+                                type="tel"
+                                required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Contoh: 08123456789"
+                            >
+                            <p class="text-xs text-gray-500 mt-1">Gunakan format angka, minimal 9 digit</p>
+                            <p v-if="newUserForm.phone && !isPhoneValid" class="text-xs text-red-500 mt-1">
+                                Nomor HP tidak valid
+                            </p>
+                        </div>
+
+                        <!-- Role -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Posisi</label>
+                            <select
+                                v-model="newUserForm.role"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="inspector">Inspector</option>
+                                <option value="quality_control">QC</option>
+                                <option value="admin_plann">Admin Planning</option>
+                                <option disabled value="admin_region">Admin Wilayah</option>
+                            </select>
+                        </div>
+
+                        <!-- Region Selection (Hanya untuk Admin/Coordinator) -->
+                        <div v-if="isAdminOrCoordinator" class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Wilayah <span class="text-red-500">*</span>
+                            </label>
+                            <select
+                                v-model="newUserForm.region_id"
+                                required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="">Pilih Wilayah</option>
+                                <option v-for="region in allRegions" :key="region.id" :value="region.id">
+                                    {{ region.name }} ({{ region.code }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Tombol -->
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" @click="showAddUserModal = false" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                :disabled="!isFormValid || isDuplicateUser || addingUser"
+                                class="px-4 py-2 bg-gradient-to-r from-indigo-700 to-sky-600 shadow-lg text-white rounded-md transition disabled:from-gray-400 disabled:to-gray-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                <span v-if="addingUser">Menambahkan...</span>
+                                <span v-else-if="isDuplicateUser">Akun ini sudah terdaftar</span>
+                                <span v-else>{{ isFormValid ? 'Tambahkan Anggota' : 'Lengkapi data' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-
-            <!-- Email -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Email <span class="text-red-500">*</span>
-                </label>
-                <input
-                    v-model="newUserForm.email"
-                    type="email"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Masukkan alamat email"
-                >
-                <p v-if="newUserForm.email && !isEmailValid" class="text-xs text-red-500 mt-1">
-                    Format email tidak valid
-                </p>
-            </div>
-
-            <!-- Nomor Telepon -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Nomor WhatsApp <span class="text-red-500">*</span>
-                </label>
-                <input
-                    v-model="newUserForm.phone"
-                    type="tel"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Contoh: 08123456789"
-                >
-                <p class="text-xs text-gray-500 mt-1">Gunakan format angka, minimal 9 digit</p>
-                <p v-if="newUserForm.phone && !isPhoneValid" class="text-xs text-red-500 mt-1">
-                    Nomor HP tidak valid
-                </p>
-            </div>
-
-            <!-- Role -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Posisi</label>
-                <select
-                    v-model="newUserForm.role"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                    <option value="inspector">Inspector</option>
-                    <option disabled value="admin_region">Admin Wilayah</option>
-                </select>
-            </div>
-
-            <!-- Tombol -->
-            <div class="flex justify-end space-x-3">
-                <button type="button" @click="showAddUserModal = false" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
-                    Batal
-                </button>
-                <button
-                    type="submit"
-                    :disabled="!isFormValid || isDuplicateUser || addingUser"
-                    class="px-4 py-2 bg-gradient-to-r from-indigo-700 to-sky-600 shadow-lg text-white rounded-md transition disabled:from-gray-400 disabled:to-gray-500 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    <span v-if="addingUser">Menambahkan...</span>
-                    <span v-else-if="isDuplicateUser">Akun ini sudah terdaftar</span>
-                    <span v-else>{{ isFormValid ? 'Tambahkan Anggota' : 'Lengkapi data' }}</span>
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
         </div>
     </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, reactive } from 'vue';
 import { usePage, Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const page = usePage();
 
-// Menambahkan props allUsers dari controller Anda
+// Props
 const props = defineProps({
     allUsers: {
         type: Object,
@@ -317,15 +436,17 @@ const props = defineProps({
 
 const user = page.props.auth.user;
 const allRegions = ref(page.props.regions || []);
-const roleName = page.props.roleName;
 const allTeamMembers = ref(page.props.teamMembers || []);
 
+// State untuk filter
 const searchQuery = ref('');
 const statusFilter = ref('');
+const selectedRegionFilter = ref('');
+const roleFilter = ref('');
 const showAddUserModal = ref(false);
 const addingUser = ref(false);
 
-// Menambahkan state untuk pesan dari backend
+// Message state
 const message = reactive({
     text: '',
     isError: false
@@ -336,28 +457,19 @@ const newUserForm = reactive({
     name: '',
     email: '',
     phone: '',
-    role: 'inspector'
+    role: 'inspector',
+    region_id: ''
 });
-
-// Validasi Email
-const isEmailValid = computed(() => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(newUserForm.email);
-});
-
-// Validasi Nomor HP (hanya angka, minimal 9 digit, maksimal 15)
-const isPhoneValid = computed(() => {
-    const phoneRegex = /^[0-9]{9,15}$/;
-    return phoneRegex.test(newUserForm.phone.replace(/^0/, '')); // hilangkan 0 awal
-});
-
-
 
 // Computed properties
-const userRoles = computed(() => page.props.roleName || 'inspection')
+const userRoles = computed(() => page.props.roleName || []);
+const isAdminOrCoordinator = computed(() => {
+    return userRoles.value.includes('Admin') || userRoles.value.includes('coordinator');
+});
+
 const canAddUser = computed(() => {
-    return userRoles.value.includes('Admin') || userRoles.value.includes('coordinator')
-})
+    return isAdminOrCoordinator.value;
+});
 
 const userRegion = computed(() => {
     const userTeam = allTeamMembers.value.find(member => member?.user?.id === user?.id);
@@ -365,15 +477,18 @@ const userRegion = computed(() => {
     return allRegions.value.find(region => region?.id === userTeam.region_id);
 });
 
+// Untuk user biasa: hanya anggota di region mereka
+// Untuk admin/coordinator: semua anggota dari semua region
 const userTeamMembers = computed(() => {
-    const regionId = userRegion.value?.id;
-    if (!regionId) return [];
-    return allTeamMembers.value.filter(member => member?.region_id === regionId);
-});
-
-const userRole = computed(() => {
-    const userTeam = allTeamMembers.value.find(member => member?.user?.id === user?.id);
-    return userTeam ? userTeam.role : 'anggota';
+    if (isAdminOrCoordinator.value) {
+        // Admin/Coordinator melihat semua data
+        return allTeamMembers.value;
+    } else {
+        // User biasa hanya melihat region mereka sendiri
+        const regionId = userRegion.value?.id;
+        if (!regionId) return [];
+        return allTeamMembers.value.filter(member => member?.region_id === regionId);
+    }
 });
 
 const userTeamStatus = computed(() => {
@@ -381,12 +496,21 @@ const userTeamStatus = computed(() => {
     return userTeam ? userTeam.status : 'inactive';
 });
 
-// Perbaikan: computed property untuk cek email dan nomor telepon yang duplikat
+// Validasi
+const isEmailValid = computed(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(newUserForm.email);
+});
+
+const isPhoneValid = computed(() => {
+    const phoneRegex = /^[0-9]{9,13}$/;
+    return phoneRegex.test(newUserForm.phone.replace(/^0/, ''));
+});
+
 const isDuplicateUser = computed(() => {
     const currentEmail = newUserForm.email.trim().toLowerCase();
     const currentPhone = newUserForm.phone.trim();
 
-    // Perbaikan utama: Menggunakan optional chaining `?.` untuk memastikan `props.allUsers` bukan `null` atau `undefined`
     const users = props.allUsers || [];
     const emailExists = users.some(user => user.email?.toLowerCase() === currentEmail);
     const phoneExists = users.some(user => user.numberPhone === currentPhone);
@@ -394,23 +518,35 @@ const isDuplicateUser = computed(() => {
     return emailExists || phoneExists;
 });
 
-// // Perbaikan: computed property untuk validasi form
-// const isFormValid = computed(() => {
-//     return newUserForm.name && newUserForm.email && newUserForm.phone;
-// });
-// Form validasi keseluruhan
 const isFormValid = computed(() => {
-    return (
-        newUserForm.name &&
-        isEmailValid.value &&
-        isPhoneValid.value
-    );
+    if (isAdminOrCoordinator.value) {
+        return (
+            newUserForm.name &&
+            isEmailValid.value &&
+            isPhoneValid.value &&
+            newUserForm.region_id
+        );
+    } else {
+        return (
+            newUserForm.name &&
+            isEmailValid.value &&
+            isPhoneValid.value
+        );
+    }
 });
 
+// Filter untuk admin/coordinator
 const filteredTeamMembers = computed(() => {
     let filtered = userTeamMembers.value;
 
-    if (canAddUser.value) {
+    // Aplikasikan filter jika admin/coordinator
+    if (isAdminOrCoordinator.value) {
+        // Filter region
+        if (selectedRegionFilter.value) {
+            filtered = filtered.filter(member => member?.region_id == selectedRegionFilter.value);
+        }
+
+        // Filter search query
         if (searchQuery.value) {
             const query = searchQuery.value.toLowerCase();
             filtered = filtered.filter(member => {
@@ -418,8 +554,29 @@ const filteredTeamMembers = computed(() => {
                 if (!user) return false;
                 const nameMatch = user.name?.toLowerCase().includes(query);
                 const emailMatch = user.email?.toLowerCase().includes(query);
-                const roleMatch = user.roles?.some(role => role.toLowerCase().includes(query));
-                return nameMatch || emailMatch || roleMatch;
+                return nameMatch || emailMatch;
+            });
+        }
+
+        // Filter status
+        if (statusFilter.value) {
+            filtered = filtered.filter(member => member?.status === statusFilter.value);
+        }
+
+        // Filter role
+        if (roleFilter.value) {
+            filtered = filtered.filter(member => member?.role === roleFilter.value);
+        }
+    } else {
+        // Filter untuk user biasa (hanya region mereka)
+        if (searchQuery.value) {
+            const query = searchQuery.value.toLowerCase();
+            filtered = filtered.filter(member => {
+                const user = member?.user;
+                if (!user) return false;
+                const nameMatch = user.name?.toLowerCase().includes(query);
+                const emailMatch = user.email?.toLowerCase().includes(query);
+                return nameMatch || emailMatch;
             });
         }
 
@@ -429,6 +586,18 @@ const filteredTeamMembers = computed(() => {
     }
 
     return filtered;
+});
+
+// Helper untuk mendapatkan nama region
+const getRegionName = (regionId) => {
+    const region = allRegions.value.find(r => r.id == regionId);
+    return region ? `${region.name} (${region.code})` : 'Unknown Region';
+};
+
+const selectedRegionFilterText = computed(() => {
+    if (!selectedRegionFilter.value) return '';
+    const region = allRegions.value.find(r => r.id == selectedRegionFilter.value);
+    return region ? `${region.name} (${region.code})` : '';
 });
 
 // Methods
@@ -455,30 +624,75 @@ const getCombinedStatusText = (member) => {
         return 'Dalam Tinjauan';
     }
     return getStatusText(member.status);
-}
+};
 
 const clearFilters = () => {
     searchQuery.value = '';
     statusFilter.value = '';
+    selectedRegionFilter.value = '';
+    roleFilter.value = '';
+};
+
+const exportToExcel = () => {
+    // Implementasi export ke Excel
+    const data = filteredTeamMembers.value.map(member => ({
+        'Nama': member.user.name,
+        'Email': member.user.email,
+        'Nomor HP': member.user.phone,
+        'Posisi': member.role,
+        'Status': getStatusText(member.status),
+        'Wilayah': getRegionName(member.region_id),
+        'Tanggal Bergabung': formatDate(member.created_at)
+    }));
+
+    // Convert to CSV
+    const csvContent = [
+        Object.keys(data[0]).join(','),
+        ...data.map(row => Object.values(row).join(','))
+    ].join('\n');
+
+    // Create download link
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `anggota_tim_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
 const submitNewUser = async () => {
-    const regionId = userRegion.value?.id;
-    if (!regionId) {
-        console.error('Anda tidak dapat menambahkan user karena Anda belum tergabung dalam region.');
-        addingUser.value = false;
-        return;
+    let regionId = null;
+
+    if (isAdminOrCoordinator.value) {
+        // Admin/Coordinator memilih region dari form
+        regionId = newUserForm.region_id;
+        if (!regionId) {
+            message.text = 'Harap pilih wilayah untuk anggota baru';
+            message.isError = true;
+            return;
+        }
+    } else {
+        // User biasa menggunakan region mereka sendiri
+        regionId = userRegion.value?.id;
+        if (!regionId) {
+            message.text = 'Anda tidak dapat menambahkan user karena belum tergabung dalam region.';
+            message.isError = true;
+            addingUser.value = false;
+            return;
+        }
     }
 
-     if (!isFormValid.value) return;
+    if (!isFormValid.value) return;
     
-    // Pastikan tidak ada duplikasi sebelum mengirim
     if (isDuplicateUser.value) {
         return;
     }
 
     addingUser.value = true;
-    message.text = ''; // Kosongkan pesan sebelumnya
+    message.text = '';
     message.isError = false;
 
     try {
@@ -487,35 +701,32 @@ const submitNewUser = async () => {
             region_id: regionId
         });
 
-        // Menampilkan pesan sukses dari backend
         if (response.data.success) {
             const newUser = response.data.user;
             allTeamMembers.value.push(newUser);
             message.text = response.data.message || 'Anggota berhasil ditambahkan!';
             message.isError = false;
             
-            // Reset form setelah berhasil
+            // Reset form
             Object.assign(newUserForm, {
                 name: '',
                 email: '',
                 phone: '',
-                role: 'inspector'
+                role: 'inspector',
+                region_id: ''
             });
 
-            // Otomatis tutup modal setelah 3 detik
             setTimeout(() => {
                 showAddUserModal.value = false;
                 message.text = '';
             }, 3000);
 
         } else {
-            // Menampilkan pesan error dari backend
             message.text = response.data.message || 'Gagal menambahkan anggota. Silakan coba lagi.';
             message.isError = true;
         }
     } catch (error) {
         console.error('Error adding user:', error);
-        // Menampilkan pesan error dari respons Axios
         if (error.response && error.response.data && error.response.data.message) {
             message.text = error.response.data.message;
         } else {

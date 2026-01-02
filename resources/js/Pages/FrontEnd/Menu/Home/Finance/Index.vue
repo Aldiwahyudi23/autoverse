@@ -38,7 +38,7 @@
 
                     <!-- Region, Pengguna, dan Status -->
                     <div class="flex flex-col-2  sm:gap-4 gap-4 w-full lg:w-auto">
-                        <div v-if="role === 'Admin' || role === 'superadmin'" class="w-full sm:w-auto">
+                        <div v-if="role === 'Admin' || role === 'superadmin' || role === 'coordinator'" class="w-full sm:w-auto">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Region</label>
                             <select v-model="filters.region_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="">Semua Region</option>

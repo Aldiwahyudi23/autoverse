@@ -290,7 +290,9 @@ Route::middleware([
         ;
         Route::put('/team-settings/{id}', [TeamController::class, 'updateettingTeam'])->name('team-settings.update')
          ->middleware('permission:FrontEnd.settings Team');
-        ;
+        
+        Route::get('/team/filter', [TeamController::class, 'filter'])->name('team.filter');
+        Route::get('/team/export', [TeamController::class, 'export'])->name('team.export');
     });
 
         // ======================TRANSAKSI & FINANCE ROUTES==============================

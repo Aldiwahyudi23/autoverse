@@ -44,7 +44,10 @@ class TransactionController extends Controller
             // Coordinator hanya melihat data di regionnya
             $userRegionId = $user->regionTeams()->first()->region_id ?? null;
             if ($userRegionId) {
-                $query->where('transaction_distributions.region_id', $userRegionId);
+                //Jika tidak ada filter region, pakai region coordinator
+                // $query->where('transaction_distributions.region_id', $userRegionId);
+                //Untuk region semua jika dikirim dari filter
+                $query->where('transaction_distributions.region_id', $request->region_id); 
             } else {
                 // Jika coordinator tidak punya region, kasih kosong
                 $query->where('transaction_distributions.region_id', -1);
