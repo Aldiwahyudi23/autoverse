@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Team\RegionResource\RelationManagers;
 
+use App\Models\Team\Region;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -183,6 +185,61 @@ class RegionTeamRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                
+                // Tombol Alihkan Region
+                Tables\Actions\Action::make('transfer')
+                    ->label('Alihkan Region')
+                    ->icon('heroicon-o-arrow-right-circle')
+                    ->color('warning')
+                    ->modalHeading('Alihkan Team Member ke Region Lain')
+                    ->modalDescription(fn ($record) => "Anda akan mengalihkan {$record->user->name} dari region {$this->getOwnerRecord()->name} ke region lain.")
+                    ->form([
+                        Forms\Components\Select::make('target_region_id')
+                            ->label('Region Tujuan')
+                            ->required()
+                            ->options(function () {
+                                // Ambil semua region kecuali region yang sedang diakses
+                                $currentRegionId = $this->getOwnerRecord()->id;
+                                
+                                return Region::where('id', '!=', $currentRegionId)
+                                    ->where('is_active', true)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('Pilih Region Tujuan'),
+                        
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan')
+                            ->rows(3)
+                            ->placeholder('Opsional: Tambahkan catatan jika diperlukan'),
+                    ])
+                    ->action(function (array $data, $record): void {
+                        try {
+                            // Simpan data ke region baru
+                            $record->region_id = $data['target_region_id'];
+                            $record->save();
+                            
+                            Notification::make()
+                                ->title('Berhasil!')
+                                ->body("Team member berhasil dialihkan ke region baru.")
+                                ->success()
+                                ->send();
+                                
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Gagal!')
+                                ->body("Terjadi kesalahan: " . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->requiresConfirmation()
+                    ->modalSubmitActionLabel('Ya, Alihkan Sekarang')
+                    ->modalCancelActionLabel('Batal'),
+                
                 // Tables\Actions\DeleteAction::make(),
                 Tables\Actions\RestoreAction::make(),
                 Tables\Actions\ForceDeleteAction::make(),

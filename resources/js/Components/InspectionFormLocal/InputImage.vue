@@ -120,12 +120,21 @@
       @trigger-gallery="triggerGallery"
     />
 
-    <WebCamRTC
+    <!-- <WebCamRTC
       :show="showWebcamModal"
       :aspect-ratio="aspectRatio"
       :settings="settings"
       :point="point"
       :camera-quality="cameraQualitySetting"
+      @close="closeWebcam"
+      @photo-captured="handlePhotoCaptured"
+    /> -->
+
+    <WebcamModal
+      :show="showWebcamModal"
+      :aspect-ratio="aspectRatio"
+      :settings="settings"
+      :point="point"      
       @close="closeWebcam"
       @photo-captured="handlePhotoCaptured"
     />
@@ -157,6 +166,7 @@ import ImageSourceOptionsModal from './Modal-uploader/ImageSourceOptionsModal.vu
 import PreviewModal from './Modal-uploader/PreviewModal.vue';
 import axios from 'axios';
 import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
+import WebcamModal from './Modal-uploader/WebcamModal.vue';
 
 // Debug flag
 const DEBUG = true;
