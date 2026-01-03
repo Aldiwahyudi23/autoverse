@@ -3,6 +3,9 @@
     <div class="webcam-content-box">
       <div class="webcam-header">
         <div class="inspection-point-name">{{ point?.name || 'Camera' }}</div>
+        <div class="camera-quality-indicator">
+          <span class="quality-badge">{{ cameraQuality }}</span>
+        </div>
         <button @click="closeModal" class="p-2 rounded-full text-white hover:bg-gray-700 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -35,10 +38,10 @@
         </div>
 
         <!-- Loading State -->
-        <div v-if="isLoading" class="loading-overlay">
+        <!-- <div v-if="isLoading" class="loading-overlay">
           <div class="loading-spinner"></div>
           <p class="loading-text">Menyiapkan kamera...</p>
-        </div>
+        </div> -->
 
         <!-- Error State -->
         <div v-if="error" class="error-overlay">
@@ -105,7 +108,10 @@ const props = defineProps({
       max_size: 2048
     })
   },
-  point: Object
+  point: Object,
+  cameraQuality: {
+    type: String,
+  }
 });
 const emit = defineEmits(['close', 'photoCaptured']);
 
@@ -193,25 +199,56 @@ const initializeWebcam = async () => {
 
   } catch (err) {
     console.error("Error mengakses kamera: ", err);
-    
-    // STRATEGI 2: Fallback ke resolusi minimal jika gagal
+
+    // STRATEGI 2: Fallback ke resolusi berdasarkan kualitas kamera yang dipilih
     if (!mediaStream) {
       try {
-        console.log('Mencoba fallback ke resolusi minimal...');
+        console.log('Mencoba fallback berdasarkan kualitas kamera...');
+
+        // Tentukan fallback constraints berdasarkan kualitas kamera
+        let fallbackWidthIdeal, fallbackHeightIdeal, fallbackWidthMin, fallbackHeightMin;
+
+        switch (props.cameraQuality) {
+          case 'SD':
+            fallbackWidthIdeal = 1280;
+            fallbackHeightIdeal = 720;
+            fallbackWidthMin = 640;
+            fallbackHeightMin = 480;
+            break;
+          case 'HD':
+            fallbackWidthIdeal = 1920;
+            fallbackHeightIdeal = 1080;
+            fallbackWidthMin = 1280;
+            fallbackHeightMin = 720;
+            break;
+          case '4K':
+            fallbackWidthIdeal = 3840;
+            fallbackHeightIdeal = 2160;
+            fallbackWidthMin = 1920;
+            fallbackHeightMin = 1080;
+            break;
+          default:
+            // Default ke HD
+            fallbackWidthIdeal = 1920;
+            fallbackHeightIdeal = 1080;
+            fallbackWidthMin = 1280;
+            fallbackHeightMin = 720;
+        }
+
         const fallbackConstraints = {
           video: {
             facingMode: currentFacingMode.value,
-            width: { min: 640, ideal: 1280 },
-            height: { min: 480, ideal: 720 }
+            width: { min: fallbackWidthMin, ideal: fallbackWidthIdeal },
+            height: { min: fallbackHeightMin, ideal: fallbackHeightIdeal }
           }
         };
-        
+
         mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
         videoTrack = mediaStream.getVideoTracks()[0];
         webcamVideo.value.srcObject = mediaStream;
         await webcamVideo.value.play();
         isLoading.value = false;
-        console.log('Fallback berhasil');
+        console.log('Fallback berhasil dengan kualitas:', props.cameraQuality);
       } catch (fallbackErr) {
         console.error("Fallback juga gagal:", fallbackErr);
         error.value = getErrorMessage(fallbackErr);
@@ -223,12 +260,50 @@ const initializeWebcam = async () => {
 
 // Fungsi untuk mendapatkan constraints optimal berdasarkan kemampuan perangkat
 const getOptimalConstraints = () => {
+  // Tentukan resolusi berdasarkan pengaturan kualitas kamera
+  let widthIdeal, heightIdeal, widthMax, heightMax, widthMin, heightMin;
+
+  switch (props.cameraQuality) {
+    case 'SD':
+      widthIdeal = 1280;
+      heightIdeal = 720;
+      widthMax = 1280;
+      heightMax = 720;
+      widthMin = 640;
+      heightMin = 480;
+      break;
+    case 'HD':
+      widthIdeal = 1920;
+      heightIdeal = 1080;
+      widthMax = 1920;
+      heightMax = 1080;
+      widthMin = 1280;
+      heightMin = 720;
+      break;
+    case '4K':
+      widthIdeal = 3840;
+      heightIdeal = 2160;
+      widthMax = 3840;
+      heightMax = 2160;
+      widthMin = 1920;
+      heightMin = 1080;
+      break;
+    default:
+      // Default ke HD jika tidak dikenali
+      widthIdeal = 1920;
+      heightIdeal = 1080;
+      widthMax = 1920;
+      heightMax = 1080;
+      widthMin = 1280;
+      heightMin = 720;
+  }
+
   // Prioritas: kamera belakang dengan auto-focus dan exposure
   const baseConstraints = {
     facingMode: { ideal: 'environment' },
-    // Resolusi untuk pengambilan foto yang baik
-    width: { ideal: 1920, max: 1920, min: 1280 },
-    height: { ideal: 1080, max: 1080, min: 720 },
+    // Resolusi berdasarkan kualitas kamera yang dipilih
+    width: { ideal: widthIdeal, max: widthMax, min: widthMin },
+    height: { ideal: heightIdeal, max: heightMax, min: heightMin },
     // Pengaturan untuk fokus dan pencahayaan otomatis
     focusMode: { ideal: ['continuous', 'single-shot', 'manual'] },
     exposureMode: { ideal: ['continuous', 'manual'] },
@@ -619,6 +694,25 @@ onUnmounted(() => {
   text-align: center;
   font-weight: 600;
   font-size: 1.1rem;
+}
+
+.camera-quality-indicator {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+}
+
+.quality-badge {
+  background: rgba(0, 123, 255, 0.9);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .webcam-video-container {

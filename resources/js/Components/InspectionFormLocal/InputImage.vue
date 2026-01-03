@@ -124,7 +124,8 @@
       :show="showWebcamModal"
       :aspect-ratio="aspectRatio"
       :settings="settings"
-      :point="point"      
+      :point="point"
+      :camera-quality="cameraQualitySetting"
       @close="closeWebcam"
       @photo-captured="handlePhotoCaptured"
     />
@@ -200,6 +201,9 @@ const totalToUpload = ref(0);
 
 // Inject image source setting dari parent
 const imageSourceSetting = inject('imageSourceSetting', ref('all'));
+
+// Inject camera quality setting dari parent
+const cameraQualitySetting = inject('cameraQualitySetting', ref('HD'));
 
 // KEY untuk local storage backup
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;

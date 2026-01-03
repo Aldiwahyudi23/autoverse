@@ -18,6 +18,7 @@
           {{ point?.name || 'Preview' }} ({{ currentPreviewIndex + 1 }}/{{ editableImages.length }})
         </div>
         <div class="flex items-center gap-2">
+          <!-- Tombol hapus dari header hanya untuk gambar baru -->
           <button
             v-if="currentImage && currentImage.isNew"
             @click="removeCurrentImage"
@@ -29,25 +30,22 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
-          <button
-            v-if="currentImage && currentImage.isNew"
-            @click="rotateImage"
-            class="p-2 rounded-full hover:bg-white hover:bg-opacity-20 transition-colors"
-            :disabled="isUploading"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
         </div>
       </div>
 
       <!-- Upload Progress Indicator -->
+      <div v-if="isUploading" class="px-4 py-2 bg-indigo-900 text-white">
+        <div class="flex justify-between items-center text-sm">
+          <span>Mengupload: {{ currentUpload }}/{{ totalUpload }}</span>
+          <span>{{ uploadProgress }}%</span>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+          <div 
+            class="bg-gradient-to-r from-indigo-500 to-sky-400 h-2 rounded-full progress-bar" 
+            :style="{ width: uploadProgress + '%' }"
+          ></div>
+        </div>
+      </div>
 
       <div class="flex-1 flex items-center justify-center overflow-hidden relative">
         <div
@@ -62,6 +60,39 @@
             class="absolute inset-0 w-full h-full object-contain transition-transform duration-300 ease-in-out bg-black"
             :style="{ transform: `rotate(${currentImage.rotation}deg)` }"
           />
+
+          <!-- Tombol rotate untuk gambar baru (hanya muncul jika gambar baru) -->
+          <div 
+            v-if="currentImage && currentImage.isNew && !currentImage.isUploading && !currentImage.isFailed" 
+            class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3"
+          >
+            <!-- Rotate Left (↺) -->
+            <button
+              @click="rotateImage('left')"
+              class="p-3 bg-black bg-opacity-60 text-white rounded-full hover:bg-opacity-80 transition-colors"
+              :disabled="isUploading"
+              title="Putar ke kiri"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <!-- Icon rotate kiri (↺) -->
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l3-3m0 0l3 3m-3-3v9" transform="rotate(180 12 12)" />
+              </svg>
+            </button>
+            <!-- Rotate Right (↻) -->
+            <button
+              @click="rotateImage('right')"
+              class="p-3 bg-black bg-opacity-60 text-white rounded-full hover:bg-opacity-80 transition-colors"
+              :disabled="isUploading"
+              title="Putar ke kanan"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <!-- Icon rotate kanan (↻) -->
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l3-3m0 0l3 3m-3-3v9" />
+              </svg>
+            </button>
+          </div>
 
           <!-- Overlay saat uploading -->
           <div v-if="currentImage && currentImage.isUploading" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -93,7 +124,7 @@
           class="absolute left-4 p-3 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors"
           :disabled="isUploading"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -111,6 +142,7 @@
 
       <div class="flex flex-col gap-3 p-4 bg-black bg-opacity-70 shadow-inner">
         <div class="flex justify-between items-center w-full">
+          <!-- Tombol hapus foto hanya muncul untuk foto yang sudah ada di database -->
           <button 
             v-if="currentImage && !currentImage.isNew" 
             @click="removeCurrentImage" 
@@ -189,7 +221,6 @@ const props = defineProps({
   isUploading: Boolean,
   aspectRatio: Number,
   point: Object,
-  // TAMBAH: Props untuk progress upload
   uploadProgress: {
     type: Number,
     default: 0
@@ -221,7 +252,7 @@ watch(
   (newImages) => {
     editableImages.value = newImages.map((img) => ({
       ...img,
-      rotation: img.rotation || 0,
+      rotation: img.isNew ? (img.rotation || 0) : 0, // Hanya gambar baru yang punya rotation
     }));
     if (newImages.length === 0 && props.show) {
       cancelPreview();
@@ -239,11 +270,9 @@ watch(
   }
 );
 
-// TAMBAH: Watch untuk progress upload
 watch(
   () => props.uploadProgress,
   (progress) => {
-    // Jika upload selesai (100%), bisa tambahkan logika tambahan jika perlu
     if (progress === 100) {
       console.log('Upload completed');
     }
@@ -254,9 +283,24 @@ const getImageSrc = (image) => {
   return image.preview || (image.image_path ? `/${image.image_path}` : '');
 };
 
-const rotateImage = () => {
-  if (currentImage.value && !props.isUploading) {
-    const newRotation = (currentImage.value.rotation + 90) % 360;
+// Modifikasi fungsi rotateImage untuk menerima arah
+const rotateImage = (direction) => {
+  if (currentImage.value && currentImage.value.isNew && !props.isUploading) {
+    const currentRotation = currentImage.value.rotation || 0;
+    let newRotation;
+    
+    if (direction === 'left') {
+      newRotation = currentRotation - 90;
+    } else if (direction === 'right') {
+      newRotation = currentRotation + 90;
+    } else {
+      // Default ke kanan untuk kompatibilitas
+      newRotation = currentRotation + 90;
+    }
+    
+    // Normalisasi ke 0-360 derajat
+    newRotation = ((newRotation % 360) + 360) % 360;
+    
     editableImages.value[currentPreviewIndex.value].rotation = newRotation;
     emit('update:images', editableImages.value);
   }
@@ -329,7 +373,7 @@ const retryCurrentImage = () => {
   }
 };
 
-// TAMBAH: Handle escape key untuk close modal
+// Handle escape key untuk close modal
 import { onMounted, onUnmounted } from 'vue';
 
 const handleKeydown = (event) => {

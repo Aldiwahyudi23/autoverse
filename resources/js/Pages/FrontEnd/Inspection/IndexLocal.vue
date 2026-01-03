@@ -44,43 +44,22 @@
         'fixed bottom-0 left-0 right-0': menuPosition === 'bottom',
       }"
     >
-      <div 
+      <div
         ref="menuContainer"
         class="flex overflow-x-auto scrollbar-hide py-3 px-4 space-x-2 menu-container"
         @scroll="handleMenuScroll"
       >
-        <!-- Tombol Toggle Swipe -->
-        <div class="flex items-center space-x-2 flex-shrink-0">
-          <span class="text-sm text-gray-600">Swipe</span>
-          <button
-            @click="toggleSwipe"
-            type="button"
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            :class="isSwipeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-            role="switch"
-            :aria-checked="isSwipeEnabled"
-          >
-            <span
-              aria-hidden="true"
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="isSwipeEnabled ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
-        </div>
-
-        <!-- TAMBAHKAN: Pengaturan Sumber Gambar -->
-        <div class="flex items-center space-x-2 flex-shrink-0">
-          <span class="text-sm text-gray-600">Sumber</span>
-          <select 
-            v-model="imageSourceSetting"
-            @change="updateImageSourceSetting"
-            class="text-sm border border-gray-300 rounded-md px-5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="all">Tanya</option>
-            <option value="camera">Kamera</option>
-            <option value="gallery">Galeri</option>
-          </select>
-        </div>
+        <!-- Tombol Settings -->
+        <button
+          @click="openSettingsModal"
+          class="flex-shrink-0 p-2 rounded-full text-gray-600 hover:text-gray-800 hover:bg-gray-100 transition-colors duration-200"
+          title="Pengaturan"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
 
         <!-- Menu Detail Kendaraan -->
         <button
@@ -136,7 +115,7 @@
           :data-category="'conclusion'"
         >
           Kesimpulan
-          <span 
+          <span
             v-if="conclusionStatus.isComplete"
             class="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-green-500 text-white"
           >
@@ -168,42 +147,6 @@
         </div>
 
         <div class="mt-2 space-y-2">
-           <!-- Tombol Toggle Swipe -->
-          <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-600">Swipe Gesture</span>
-            <button
-              @click="toggleSwipe"
-              type="button"
-              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              :class="isSwipeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-              role="switch"
-              :aria-checked="isSwipeEnabled"
-            >
-              <span
-                aria-hidden="true"
-                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                :class="isSwipeEnabled ? 'translate-x-5' : 'translate-x-0'"
-              />
-            </button>
-            <!-- <span class="text-xs text-gray-500" :class="isSwipeEnabled ? 'text-green-600' : 'text-red-600'">
-              {{ isSwipeEnabled ? 'Aktif' : 'Nonaktif' }}
-            </span> -->
-          </div>
-
-           <!-- TAMBAHKAN: Pengaturan Sumber Gambar -->
-          <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-600">Sumber</span>
-            <select 
-              v-model="imageSourceSetting"
-              @change="updateImageSourceSetting"
-              class="text-sm border border-gray-300 rounded-md px-6 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="all">Tanya</option>
-              <option value="camera">Kamera</option>
-              <option value="gallery">Galeri</option>
-            </select>
-          </div>
-
           <!-- Vehicle -->
           <button
             @click="changeCategory('vehicle'); closeMenu()"
@@ -486,6 +429,157 @@
         <p class="text-sm">Tekan sekali lagi untuk keluar dari inspeksi</p>
         <p class="text-xs text-gray-300 mt-1">Data inspeksi telah disimpan secara lokal</p>
       </div>
+
+      <!-- Modal Pengaturan -->
+      <div
+        v-if="showSettingsModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+        @click="closeSettingsModal"
+      >
+        <div
+          class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+          @click.stop
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-semibold text-gray-900">Pengaturan Inspeksi</h3>
+            <button
+              @click="closeSettingsModal"
+              class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 space-y-6">
+            <!-- Swipe Gesture -->
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700">Swipe Gesture</label>
+                <p class="text-xs text-gray-500">Aktifkan navigasi dengan geser</p>
+              </div>
+              <button
+                @click="toggleSwipe"
+                type="button"
+                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                :class="isSwipeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+                role="switch"
+                :aria-checked="isSwipeEnabled"
+              >
+                <span
+                  aria-hidden="true"
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="isSwipeEnabled ? 'translate-x-5' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+
+            <!-- Sumber Gambar -->
+            <div class="space-y-2">
+              <label class="text-sm font-medium text-gray-700">Sumber Gambar</label>
+              <select
+                v-model="imageSourceSetting"
+                @change="updateImageSourceSetting"
+                class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="all">Tanya</option>
+                <option value="camera">Kamera</option>
+                <option value="gallery">Galeri</option>
+              </select>
+            </div>
+
+            <!-- Kualitas Kamera -->
+            <div class="space-y-2">
+              <label class="text-sm font-medium text-gray-700">Kualitas Kamera</label>
+              <select
+                v-model="cameraQualitySetting"
+                class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="4K">4K</option>
+                <option value="HD">HD</option>
+                <option value="SD">SD</option>
+              </select>
+            </div>
+
+            <!-- Menu Mode -->
+            <div class="space-y-2">
+              <label class="text-sm font-medium text-gray-700">Mode Menu</label>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input
+                    type="radio"
+                    v-model="menuMode"
+                    value="horizontal"
+                    class="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Horizontal</span>
+                </label>
+                <label class="flex items-center">
+                  <input
+                    type="radio"
+                    v-model="menuMode"
+                    value="vertical"
+                    class="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Vertikal</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Menu Position (hanya untuk horizontal) -->
+            <div v-if="menuMode === 'horizontal'" class="space-y-2">
+              <label class="text-sm font-medium text-gray-700">Posisi Menu</label>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input
+                    type="radio"
+                    v-model="menuPosition"
+                    value="top"
+                    class="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Atas</span>
+                </label>
+                <label class="flex items-center">
+                  <input
+                    type="radio"
+                    v-model="menuPosition"
+                    value="bottom"
+                    class="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Bawah</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Menu Position (hanya untuk vertical) -->
+            <div v-if="menuMode === 'vertical'" class="space-y-2">
+              <label class="text-sm font-medium text-gray-700">Posisi Menu Vertikal</label>
+              <select
+                v-model="menuPosition"
+                class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="top-right">Atas Kanan</option>
+                <option value="top-left">Atas Kiri</option>
+                <option value="bottom-right">Bawah Kanan</option>
+                <option value="bottom-left">Bawah Kiri</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex justify-end p-4 border-t bg-gray-50">
+            <button
+              @click="closeSettingsModal"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -616,6 +710,27 @@ const setImageSourceSetting = (setting) => {
   }
 };
 
+// TAMBAHKAN FUNGSI UNTUK CAMERA QUALITY SETTING
+const CAMERA_QUALITY_KEY = computed(() => `camera_quality_${props.inspection.id}`);
+
+const getCameraQualitySetting = () => {
+  try {
+    const setting = localStorage.getItem(CAMERA_QUALITY_KEY.value);
+    return setting || 'HD';
+  } catch (error) {
+    console.error("Error reading camera quality setting:", error);
+    return 'HD';
+  }
+};
+
+const setCameraQualitySetting = (setting) => {
+  try {
+    localStorage.setItem(CAMERA_QUALITY_KEY.value, setting);
+  } catch (error) {
+    console.error("Error writing camera quality setting:", error);
+  }
+};
+
 
 // Utility functions untuk Active Category
 const getActiveCategory = () => {
@@ -732,10 +847,7 @@ const allCategories = computed(() => {
 const activeCategory = ref(allCategories.value[0]);
 const activeIndex = ref(0);
 
-// Watcher untuk sinkronisasi activeIndex dengan activeCategory
-watch(activeCategory, (newVal) => {
-  activeIndex.value = allCategories.value.indexOf(newVal);
-});
+
 
 const activeMenuData = computed(() => {
   if (activeCategory.value === 'vehicle' || activeCategory.value === 'conclusion') {
@@ -1092,7 +1204,24 @@ const isMenuComplete = (menu) => {
 const isSwipeEnabled = ref(true);
 
 // TAMBAHKAN: State untuk image source setting
-const imageSourceSetting = ref('all'); // 'all', 'camera', 'gallery'
+const imageSourceSetting = ref(getImageSourceSetting()); // 'all', 'camera', 'gallery'
+
+// TAMBAHKAN: State untuk camera quality setting
+const cameraQualitySetting = ref(getCameraQualitySetting()); // 'HD', '4K'
+
+// TAMBAHKAN: State untuk settings modal horizontal menu
+const showSettingsModal = ref(false);
+
+// TAMBAHKAN: Functions untuk settings modal
+const openSettingsModal = () => {
+  console.log('Opening settings modal');
+  showSettingsModal.value = true;
+};
+
+const closeSettingsModal = () => {
+  console.log('Closing settings modal');
+  showSettingsModal.value = false;
+};
 
 // TAMBAHKAN: Refs untuk scroll menu
 const menuContainer = ref(null);
@@ -1109,6 +1238,9 @@ const showExitMessage = ref(false);
 // TAMBAHKAN: Provide image source setting ke child components
 provide('imageSourceSetting', imageSourceSetting);
 
+// TAMBAHKAN: Provide camera quality setting ke child components
+provide('cameraQualitySetting', cameraQualitySetting);
+
 // =========================================================================
 // ACTION HANDLERS
 // =========================================================================
@@ -1123,6 +1255,12 @@ const toggleSwipe = () => {
 const updateImageSourceSetting = () => {
   setImageSourceSetting(imageSourceSetting.value);
   console.log('Image source setting updated to:', imageSourceSetting.value);
+};
+
+// TAMBAHKAN: Update camera quality setting
+const updateCameraQualitySetting = () => {
+  setCameraQualitySetting(cameraQualitySetting.value);
+  console.log('Camera quality setting updated to:', cameraQualitySetting.value);
 };
 
 // TAMBAHKAN: Fungsi untuk scroll menu ke tengah
@@ -1467,6 +1605,11 @@ watch(activeCategory, (newVal) => {
   activeIndex.value = allCategories.value.indexOf(newVal);
 });
 
+// Watcher untuk camera quality setting
+watch(cameraQualitySetting, (newVal) => {
+  updateCameraQualitySetting();
+});
+
 
 onMounted(() => {
   const localData = getLocalData();
@@ -1476,6 +1619,9 @@ onMounted(() => {
   
   // TAMBAHKAN: Inisialisasi image source setting
   imageSourceSetting.value = getImageSourceSetting();
+
+  // TAMBAHKAN: Inisialisasi camera quality setting
+  cameraQualitySetting.value = getCameraQualitySetting();
   
   if (localData.vehicleDetails) {
     Object.assign(vehicleDetails.value, localData.vehicleDetails);
