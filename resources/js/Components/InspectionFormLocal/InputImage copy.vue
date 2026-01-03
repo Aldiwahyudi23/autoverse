@@ -120,8 +120,7 @@
       @trigger-gallery="triggerGallery"
     />
 
-    <WebCamRTC
-      v-if="cameraQualitySetting !== 'HD_Std'"
+    <!-- <WebCamRTC
       :show="showWebcamModal"
       :aspect-ratio="aspectRatio"
       :settings="settings"
@@ -129,14 +128,13 @@
       :camera-quality="cameraQualitySetting"
       @close="closeWebcam"
       @photo-captured="handlePhotoCaptured"
-    />
+    /> -->
 
     <WebcamModal
-      v-if="cameraQualitySetting === 'HD_Std'"
       :show="showWebcamModal"
       :aspect-ratio="aspectRatio"
       :settings="settings"
-      :point="point"
+      :point="point"      
       :camera-quality="cameraQualitySetting"
       @close="closeWebcam"
       @photo-captured="handlePhotoCaptured"
@@ -216,7 +214,7 @@ const totalToUpload = ref(0);
 const imageSourceSetting = inject('imageSourceSetting', ref('all'));
 
 // Inject camera quality setting dari parent
-const cameraQualitySetting = inject('cameraQualitySetting', ref('HD_Std'));
+const cameraQualitySetting = inject('cameraQualitySetting', ref('HD'));
 
 // KEY untuk local storage backup
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;
