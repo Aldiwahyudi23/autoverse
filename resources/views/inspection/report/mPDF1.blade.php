@@ -794,7 +794,7 @@
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
+                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
                                                             $statusColor = '#dc3545';
                                                         }
                                                     @endphp
@@ -833,7 +833,7 @@
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
+                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
                                                             $statusColor = '#dc3545';
                                                         }
                                                     @endphp
@@ -919,7 +919,23 @@
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <tr>
                                         <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">{{ $point->inspection_point->name ?? '-' }}</td>
+                                        <td style="width: 20%; padding: 4px; vertical-align: top; font-size: 14px;"> as
+                                            @if($isRadioType && !empty($statusArray))
+                                                @foreach($statusArray as $status)
+                                                    @php
+                                                        $statusColor = '#ff6f00';
+                                                        if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                                                            $statusColor = '#28a745';
+                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                                                            $statusColor = '#dc3545';
+                                                        }
+                                                    @endphp
+                                                <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: {{ $statusColor }};">{{ $status }}</span>
+                                                @endforeach
+                                            @endif
+                                        </td>
                                     </tr>
+                                   
                                 </table>
                                 
                                 <div style="margin-top: 10px;">
@@ -1088,7 +1104,7 @@
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
+                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
                                                             $statusColor = '#dc3545';
                                                         }
                                                     @endphp
@@ -1127,7 +1143,7 @@
                                                         $statusColor = '#ff6f00';
                                                         if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
                                                             $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
+                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
                                                             $statusColor = '#dc3545';
                                                         }
                                                     @endphp
@@ -1410,8 +1426,23 @@
                     
                     <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                         <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 14px;">{{ $point->inspection_point->name ?? '-' }}</td>
+                           <tr>
+                                <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">{{ $point->inspection_point->name ?? '-' }}</td>
+                                <td style="width: 20%; padding: 4px; vertical-align: top; font-size: 14px;"> asd
+                                    @if($isRadioType && !empty($statusArray))
+                                        @foreach($statusArray as $status)
+                                            @php
+                                                $statusColor = '#ff6f00';
+                                                if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                                                    $statusColor = '#28a745';
+                                                } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                                                    $statusColor = '#dc3545';
+                                                }
+                                            @endphp
+                                        <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: {{ $statusColor }};">{{ $status }}</span>
+                                        @endforeach
+                                    @endif
+                                </td>
                             </tr>
                         </table>
                         

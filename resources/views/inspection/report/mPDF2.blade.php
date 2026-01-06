@@ -835,20 +835,29 @@
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @php
-                                                    $statusColors = [];
-                                                    foreach ($statusArray as $status) {
-                                                        $statusColor = '#ff6f00';
-                                                        if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
-                                                            $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
-                                                            $statusColor = '#dc3545';
-                                                        }
-                                                        $statusColors[] = $statusColor;
-                                                    }
-                                                @endphp
-                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
-                                            @endif
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
                                                 @foreach($displayNotes as $note)
@@ -877,20 +886,29 @@
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @php
-                                                    $statusColors = [];
-                                                    foreach ($statusArray as $status) {
-                                                        $statusColor = '#ff6f00';
-                                                        if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
-                                                            $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
-                                                            $statusColor = '#dc3545';
-                                                        }
-                                                        $statusColors[] = $statusColor;
-                                                    }
-                                                @endphp
-                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
-                                            @endif
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
                                                 @foreach($displayNotes as $note)
@@ -975,7 +993,36 @@
                             <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <tr>
-                                        <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">{{ $point->inspection_point->name ?? '-' }}</td>
+                                        <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">{{ $point->inspection_point->name ?? '-' }}     <i>(
+
+                                      
+@if($isRadioType && !empty($statusArray))
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
+ )</i>
+                                        </td>
                                     </tr>
                                 </table>
 
@@ -1212,20 +1259,29 @@
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @php
-                                                    $statusColors = [];
-                                                    foreach ($statusArray as $status) {
-                                                        $statusColor = '#ff6f00';
-                                                        if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
-                                                            $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
-                                                            $statusColor = '#dc3545';
-                                                        }
-                                                        $statusColors[] = $statusColor;
-                                                    }
-                                                @endphp
-                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
-                                            @endif
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
                                                 @foreach($displayNotes as $note)
@@ -1254,20 +1310,29 @@
                                             @endphp
                                             
                                             @if($isRadioType && !empty($statusArray))
-                                                @php
-                                                    $statusColors = [];
-                                                    foreach ($statusArray as $status) {
-                                                        $statusColor = '#ff6f00';
-                                                        if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
-                                                            $statusColor = '#28a745';
-                                                        } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'])) {
-                                                            $statusColor = '#dc3545';
-                                                        }
-                                                        $statusColors[] = $statusColor;
-                                                    }
-                                                @endphp
-                                                <span style="color: {{ $statusColors[0] ?? '#000' }};">{{ $formattedStatusArray }}</span>
-                                            @endif
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
                                             
                                             @if ($showNote && (!$isRadioType || $showTextarea))
                                                 @foreach($displayNotes as $note)
@@ -1347,7 +1412,32 @@
                                     <table style="width: 100%; border-collapse: collapse;">
                                         <tr>
                                             <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">
-                                                {{ $point->inspection_point->name ?? '-' }}
+                                                {{ $point->inspection_point->name ?? '-' }} <i>(
+                                               @if($isRadioType && !empty($statusArray))
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};"> 
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+@endif
+                                                )</i>
                                             </td>
                                         </tr>
                                     </table>
@@ -1406,6 +1496,20 @@
                                 $point = $noteData['point'];
                                 $result = $noteData['result'];
                                 $hasNote = !empty($result->note);
+                                
+                                // Cek apakah perlu menampilkan gambar berdasarkan input type
+                                $inputType = $point->input_type ?? '';
+                                $selected = $result->status ?? null;
+                                
+                                $statusArray = [];
+                                if (!empty($selected)) {
+                                    if (strpos($selected, ',') !== false) {
+                                        $statusArray = array_map('trim', explode(',', $selected));
+                                    } else {
+                                        $statusArray = [$selected];
+                                    }
+                                }
+
                             @endphp
 
                             @if($hasNote)
@@ -1413,7 +1517,33 @@
                                     <table style="width: 100%; border-collapse: collapse;">
                                         <tr>
                                             <td style="width: 35%; padding: 4px; vertical-align: top; font-weight: bold; font-size: 12px;">
-                                                {{ $point->inspection_point->name ?? '-' }}
+                                                {{ $point->inspection_point->name ?? '-' }} <i>(
+                                              @if($isRadioType && !empty($statusArray))
+    @php
+        $statusColors = [];
+        foreach ($statusArray as $status) {
+            $statusColor = '#ff6f00';
+            if (in_array(strtolower($status), ['normal', 'ada', 'baik', 'good', 'ok'])) {
+                $statusColor = '#28a745';
+            } elseif (in_array(strtolower($status), ['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'])) {
+                $statusColor = '#dc3545';
+            }
+            $statusColors[] = $statusColor;
+        }
+    @endphp
+    
+    @foreach($statusArray as $index => $status)
+        <span style="color: {{ $statusColors[$index] ?? '#ff6f00' }};">
+            {{ $status }}
+        </span>
+        
+        @if(!$loop->last)
+            <span style="color: #000;">, </span>
+        @endif
+    @endforeach
+   
+@endif
+ )</i>
                                             </td>
                                         </tr>
                                     </table>

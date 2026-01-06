@@ -615,7 +615,7 @@ const getStatusClass = (status) => {
 
   if (['normal', 'ada', 'baik', 'good', 'ok'].includes(statusStr)) {
     return 'status-good'
-  } else if (['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok'].includes(statusStr)) {
+  } else if (['tidak normal', 'tidak ada', 'rusak', 'bad', 'not ok','rusak','repaired'].includes(statusStr)) {
     return 'status-bad'
   }
   return 'status-warning'

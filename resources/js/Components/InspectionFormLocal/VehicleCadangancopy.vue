@@ -78,28 +78,28 @@
                     <!-- Bagian ini akan menampilkan validasi jika nama mobil kosong -->
                     <span v-if="isCarNameInvalid" class="text-xs text-red-500 font-normal ml-2">Nama mobil tidak boleh kosong.</span>
                     
-                        <!-- Tampilkan pesan jika car_id tidak ada -->
-                        <div v-if="!form.car_id && carSearchQuery" class="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                            <div class="flex items-start">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <div>
-                                    <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
-                                    <p class="text-yellow-700 text-sm mb-2">
-                                        Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi) 
-                                        <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
-                                    </p>
-                                    <p class="text-yellow-700 text-sm mb-2">
-                                        Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
-                                    </p>
-                                    <p class="text-yellow-700 text-sm">
-                                        Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>. 
-                                        Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+<!-- Tampilkan pesan jika car_id tidak ada -->
+<div v-if="!form.car_id && carSearchQuery" class="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+    <div class="flex items-start">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+            <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
+            <p class="text-yellow-700 text-sm mb-2">
+                Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi) 
+                <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
+            </p>
+            <p class="text-yellow-700 text-sm mb-2">
+                Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
+            </p>
+            <p class="text-yellow-700 text-sm">
+                Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>. 
+                Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
+            </p>
+        </div>
+    </div>
+</div>
                     
                     <div 
                         v-if="showSuggestions" 
