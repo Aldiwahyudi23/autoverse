@@ -51,80 +51,55 @@
                     <span v-if="inspectionCountMessage" class="text-xs text-green-500 font-normal ml-2">{{ inspectionCountMessage }}</span>
             </div>
 
-            <!-- Form Input Car Name with Auto-complete -->
+            <!-- Car Selection Section -->
             <div class="space-y-2 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
-                <label class="block text-sm font-medium text-gray-700">
-                    Nama Mobil
-                   
-                </label>
-                <div class="relative">
-                    <input
-                        v-model="carSearchQuery"
-                        type="text"
-                        placeholder="Cari atau ketik nama mobil..."
-                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm transition duration-150"
-                        :class="{'border-red-500 focus:border-red-500': isCarNameInvalid}"
-                        @input="handleCarInput"
-                        @focus="showSuggestions = true"
-                        @blur="handleInputBlur"
+                <!-- Tombol toggle untuk ganti mode -->
+                <div class="mb-2 flex justify-end">
+                    <button
+                        @click="toggleCarSelectionMode"
+                        class="text-sm text-indigo-600 hover:text-indigo-800 underline"
                     >
-                    
-                    <div v-if="isSearching" class="absolute right-3 top-3">
-                        <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        {{ carSelectionMode === 'search' ? 'Ganti ke Pilihan Dropdown' : 'Ganti ke Pencarian Teks' }}
+                    </button>
+                </div>
+
+                <!-- Opsi 1: Pencarian dengan input teks -->
+                <CarSearchInput
+                    v-if="carSelectionMode === 'search'"
+                    v-model:car-id="form.car_id"
+                    v-model:car-name="form.car_name"
+                    :car-detail="props.CarDetail"
+                    @car-selected="handleCarSelected"
+                    @car-images-loaded="handleCarImagesLoaded"
+                />
+
+                <!-- Opsi 2: Pencarian dengan dropdown wizard -->
+                <CarSelectionWizard
+                    v-else
+                    :car-detail="props.CarDetail"
+                    @car-selected="handleCarSelected"
+                    @car-images-loaded="handleCarImagesLoaded"
+                />
+
+                <!-- Tampilkan pesan jika car_id tidak ada -->
+                <div v-if="!form.car_id && form.car_name" class="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <div class="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                    </div>
-                    <!-- Bagian ini akan menampilkan validasi jika nama mobil kosong -->
-                    <span v-if="isCarNameInvalid" class="text-xs text-red-500 font-normal ml-2">Nama mobil tidak boleh kosong.</span>
-                    
-                        <!-- Tampilkan pesan jika car_id tidak ada -->
-                        <div v-if="!form.car_id && carSearchQuery" class="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                            <div class="flex items-start">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <div>
-                                    <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
-                                    <p class="text-yellow-700 text-sm mb-2">
-                                        Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi) 
-                                        <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
-                                    </p>
-                                    <p class="text-yellow-700 text-sm mb-2">
-                                        Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
-                                    </p>
-                                    <p class="text-yellow-700 text-sm">
-                                        Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>. 
-                                        Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    
-                    <div 
-                        v-if="showSuggestions" 
-                        class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
-                    >
-                        <div v-if="filteredCars.length > 0">
-                            <div 
-                                v-for="car in filteredCars" 
-                                :key="car.id"
-                                class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                @mousedown="selectCar(car)"
-                            >
-                                <div class="font-medium text-gray-900">
-                                    {{ formatCarName(car) }}
-                                </div>
-                                <div class="text-sm text-gray-500">
-                                    {{ car.year }} • {{ car.cc }}cc • {{ car.transmission }} • {{ car.fuel_type }}
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Pesan jika tidak ada hasil -->
-                        <div v-else class="p-4 text-sm text-gray-500 text-center">
-                            Tidak ada data mobil yang cocok. <br>
-                            Silakan input manual dengan format: <br>
-                            <span class="font-medium text-gray-800">Toyota Avanza 1.5 G AT Bensin 2019</span>
+                        <div>
+                            <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
+                            <p class="text-yellow-700 text-sm mb-2">
+                                Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi)
+                                <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
+                            </p>
+                            <p class="text-yellow-700 text-sm mb-2">
+                                Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
+                            </p>
+                            <p class="text-yellow-700 text-sm">
+                                Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>.
+                                Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -247,6 +222,8 @@ import { useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import PrimaryButton from '../PrimaryButton.vue';
 import ActionMessage from '../ActionMessage.vue';
+import CarSearchInput from '../InspectionCreate/CarSearchInput.vue';
+import CarSelectionWizard from '../InspectionCreate/CarSelectionWizard.vue';
 
 const props = defineProps({
     inspection: {
@@ -294,6 +271,9 @@ const carImages = ref([]);
 // State untuk lightbox
 const showLightbox = ref(false);
 const currentImageIndex = ref(0);
+
+// State untuk mode seleksi mobil
+const carSelectionMode = ref('search'); // 'search' atau 'wizard'
 
 // --- Initial Setup & Parsing Data ---
 onMounted(() => {
@@ -389,7 +369,7 @@ const isPlateNumberValid = computed(() => {
 
 // Ini adalah properti computed yang memeriksa apakah nama mobil kosong atau tidak
 const isCarNameInvalid = computed(() => {
-    return !carSearchQuery.value || carSearchQuery.value.trim() === '';
+    return !form.car_name || form.car_name.trim() === '';
 });
 
 const plateNumberError = computed(() => {
@@ -402,14 +382,14 @@ const plateNumberError = computed(() => {
 // Ini adalah properti computed yang memeriksa semua validasi form
 const isFormInvalid = computed(() => {
     const isPlateEmpty = !form.plate_number || form.plate_number.trim() === '';
-    const isCarNameEmpty = !carSearchQuery.value || carSearchQuery.value.trim() === '';
+    const isCarNameEmpty = !form.car_name || form.car_name.trim() === '';
     return isPlateEmpty || isCarNameEmpty || !isPlateNumberValid.value || isPlateInvalid.value ;
 });
 
 // Ini adalah properti computed yang memeriksa apakah ada perubahan data dari nilai awal
 const isFormChanged = computed(() => {
     const plateChanged = form.plate_number !== initialPlateNumber.value;
-    const carChanged = form.car_id !== initialCarId.value || carSearchQuery.value !== initialCarName.value;
+    const carChanged = form.car_id !== initialCarId.value || form.car_name !== initialCarName.value;
     return plateChanged || carChanged;
 });
 
@@ -489,6 +469,18 @@ const selectCar = async (car) => {
 
     // Kirim status validasi ke induk
     emit('update:validation', isFormInvalid.value);
+};
+
+const toggleCarSelectionMode = () => {
+    carSelectionMode.value = carSelectionMode.value === 'search' ? 'wizard' : 'search';
+};
+
+const handleCarSelected = async (car) => {
+    await selectCar(car);
+};
+
+const handleCarImagesLoaded = (images) => {
+    carImages.value = images;
 };
 
 const getImageSrc = (image) => {

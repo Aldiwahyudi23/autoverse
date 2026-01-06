@@ -2,7 +2,7 @@
     <div class="bg-gray-50 shadow-lg rounded-xl overflow-hidden border border-gray-100">
         <div class="bg-indigo-200 px-6 py-2 border-b flex items-center justify-between">
             <h4 class="text-base font-semibold text-indigo-700">
-            Detail Kendaraan
+                Detail Kendaraan
             </h4>
         </div>
 
@@ -46,93 +46,93 @@
                     >
                 </div>
                 <!-- Tampilkan pesan error jika ada -->
-                    <span v-if="plateNumberError" class="text-xs text-red-500 font-normal ml-2">{{ plateNumberError }}</span>
-                    <span v-if="inspectionValidationMessage" class="text-xs text-red-500 font-normal ml-2">{{ inspectionValidationMessage }}</span>
-                    <span v-if="inspectionCountMessage" class="text-xs text-green-500 font-normal ml-2">{{ inspectionCountMessage }}</span>
+                <span v-if="plateNumberError" class="text-xs text-red-500 font-normal ml-2">{{ plateNumberError }}</span>
+                <span v-if="inspectionValidationMessage" class="text-xs text-red-500 font-normal ml-2">{{ inspectionValidationMessage }}</span>
+                <span v-if="inspectionCountMessage" class="text-xs text-green-500 font-normal ml-2">{{ inspectionCountMessage }}</span>
             </div>
 
-<!-- Jenis Kendaraan -->
-<div class="space-y-2 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
-    <label class="block text-sm font-medium text-gray-700 mb-3">
-        Jenis Kendaraan
-    </label>
-    
-    <!-- Container untuk semua opsi -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <!-- Pintu Belakang (Toggle Button) -->
-        <div
-            class="w-full px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
-            :class="{
-                'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleFeatures.rear_door,
-                'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': !vehicleFeatures.rear_door
-            }"
-            @click="toggleRearDoor"
-        >
-            <span>Pintu Belakang</span>
-        </div>
+            <!-- Jenis Kendaraan -->
+            <div class="space-y-2 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
+                <label class="block text-sm font-medium text-gray-700 mb-3">
+                    Jenis Kendaraan
+                </label>
+                
+                <!-- Container untuk semua opsi -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <!-- Pintu Belakang (Toggle Button) -->
+                    <div
+                        class="w-full px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
+                        :class="{
+                            'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleFeatures.rear_door,
+                            'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': !vehicleFeatures.rear_door
+                        }"
+                        @click="toggleRearDoor"
+                    >
+                        <span>Pintu Belakang</span>
+                    </div>
 
-        <!-- Pick Up & Box dalam 1 baris -->
-        <div class="col-span-2 flex space-x-3">
-            <!-- Pick Up -->
-            <div
-                class="flex-1 px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
-                :class="{
-                    'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleType === 'pick_up',
-                    'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': vehicleType !== 'pick_up'
-                }"
-                @click="selectVehicleType('pick_up')"
-            >
-                Pick Up
+                    <!-- Pick Up & Box dalam 1 baris -->
+                    <div class="col-span-2 flex space-x-3">
+                        <!-- Pick Up -->
+                        <div
+                            class="flex-1 px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
+                            :class="{
+                                'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleType === 'pick_up',
+                                'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': vehicleType !== 'pick_up'
+                            }"
+                            @click="selectVehicleType('pick_up')"
+                        >
+                            Pick Up
+                        </div>
+
+                        <!-- Box -->
+                        <div
+                            class="flex-1 px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
+                            :class="{
+                                'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleType === 'box',
+                                'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': vehicleType !== 'box'
+                            }"
+                            @click="selectVehicleType('box')"
+                        >
+                            Box
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Info -->
+                <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-start">
+                        <svg class="w-4 h-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="text-sm text-blue-700">
+                            <p class="font-medium">Status Kendaraan:</p>
+                            <p class="mt-1">
+                                <span v-if="vehicleFeatures.rear_door" class="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium mr-2">
+                                    ✓ Mobil Pada Umum nya yang memiliki Pintu Belakang
+                                </span>
+                                <span v-if="vehicleType === 'pick_up'" class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium mr-2">
+                                    ✓ Pick Up
+                                </span>
+                                <span v-if="vehicleType === 'box'" class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                                    ✓ Box
+                                </span>
+                                <span v-if="!vehicleFeatures.rear_door && !vehicleType" class="text-blue-600">
+                                    Pilih jenis kendaraan agar point bisa menyesuaikan dengan tipe kendaraan anda
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-
-            <!-- Box -->
-            <div
-                class="flex-1 px-4 py-3 border-2 rounded-lg text-center transition-all duration-200 whitespace-nowrap text-sm font-medium cursor-pointer"
-                :class="{
-                    'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm': vehicleType === 'box',
-                    'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400': vehicleType !== 'box'
-                }"
-                @click="selectVehicleType('box')"
-            >
-                Box
-            </div>
-        </div>
-    </div>
-
-    <!-- Status Info -->
-    <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-start">
-            <svg class="w-4 h-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-            </svg>
-            <div class="text-sm text-blue-700">
-                <p class="font-medium">Status Kendaraan:</p>
-                <p class="mt-1">
-                    <span v-if="vehicleFeatures.rear_door" class="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium mr-2">
-                        ✓ Mobil Pada Umum nya yang memiliki Pintu Belakang
-                    </span>
-                    <span v-if="vehicleType === 'pick_up'" class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium mr-2">
-                        ✓ Pick Up
-                    </span>
-                    <span v-if="vehicleType === 'box'" class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
-                        ✓ Box
-                    </span>
-                    <span v-if="!vehicleFeatures.rear_door && !vehicleType" class="text-blue-600">
-                        Pilih jenis kendaraan agar point bisa menyesuaikan dengan tipe kendaraan anda
-                    </span>
-                </p>
-            </div>
-        </div>
-    </div>
-</div>
-
 
             <!-- Form Input Car Name with Auto-complete -->
             <div class="space-y-2 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
                 <label class="block text-sm font-medium text-gray-700">
                     Nama Mobil
-                   
                 </label>
+                
+                <!-- Input dengan dropdown yang berada di bawah input -->
                 <div class="relative">
                     <input
                         v-model="carSearchQuery"
@@ -145,41 +145,18 @@
                         @blur="handleInputBlur"
                     >
                     
+                    <!-- Loading Indicator -->
                     <div v-if="isSearching" class="absolute right-3 top-3">
                         <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                     </div>
-                    <!-- Bagian ini akan menampilkan validasi jika nama mobil kosong -->
-                    <span v-if="isCarNameInvalid" class="text-xs text-red-500 font-normal ml-2">Nama mobil tidak boleh kosong.</span>
                     
-<!-- Tampilkan pesan jika car_id tidak ada -->
-<div v-if="!form.car_id && carSearchQuery" class="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-    <div class="flex items-start">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <div>
-            <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
-            <p class="text-yellow-700 text-sm mb-2">
-                Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi) 
-                <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
-            </p>
-            <p class="text-yellow-700 text-sm mb-2">
-                Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
-            </p>
-            <p class="text-yellow-700 text-sm">
-                Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>. 
-                Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
-            </p>
-        </div>
-    </div>
-</div>
-                    
+                    <!-- Search Suggestions Dropdown -->
                     <div 
                         v-if="showSuggestions" 
-                        class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                        class=" mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
                     >
                         <div v-if="filteredCars.length > 0">
                             <div 
@@ -202,6 +179,32 @@
                             Silakan input manual dengan format: <br>
                             <span class="font-medium text-gray-800">Toyota Avanza 1.5 G AT Bensin 2019</span>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Pesan error validasi -->
+                <span v-if="isCarNameInvalid" class="text-xs text-red-500 font-normal ml-2">Nama mobil tidak boleh kosong.</span>
+            </div>
+
+            <!-- Pesan warning hanya muncul di luar div form input, setelah dropdown tertutup -->
+            <div v-if="!form.car_id && carSearchQuery && !showSuggestions" class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                        <p class="text-yellow-800 font-medium mb-1">Informasi Penting</p>
+                        <p class="text-yellow-700 text-sm mb-2">
+                            Anda memasukkan nama mobil secara manual. Data detail mobil (spesifikasi, gambar, deskripsi) 
+                            <span class="font-semibold">tidak akan tersedia</span> dalam laporan inspeksi.
+                        </p>
+                        <p class="text-yellow-700 text-sm mb-2">
+                            Untuk laporan yang lengkap dengan semua detail mobil, silakan pilih mobil dari hasil pencarian.
+                        </p>
+                        <p class="text-yellow-700 text-sm">
+                            Jika tidak ingin mengubah data mobil dan anda tidak sengaja sudah menghapus atau edit, <span class="font-semibold">jangan klik tombol "Perbarui Detail Kendaraan"</span>. 
+                            Sebagai gantinya, <span class="font-semibold">refresh halaman</span> untuk kembali ke data awal.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -316,13 +319,13 @@
         </div>
     </div>
 </template>
-
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import PrimaryButton from '../PrimaryButton.vue';
 import ActionMessage from '../ActionMessage.vue';
+import Fuse from 'fuse.js';
 
 const props = defineProps({
     inspection: {
@@ -578,32 +581,19 @@ const canUpdate = computed(() => {
     return isFormChanged.value && !isFormInvalid.value;
 });
 
-// --- Helpers ---
+// --- Fungsi Pencarian Mobil dengan Fuzzy Search ---
 const formatCarName = (car) => {
     if (!car) return '';
     const parts = [];
     if (car.brand?.name) parts.push(car.brand.name);
     if (car.model?.name) parts.push(car.model.name);
     if (car.type?.name) parts.push(car.type.name);
-    if (car.cc) parts.push((car.cc / 1000).toFixed(1)); // ubah ke liter
+    if (car.cc) parts.push((car.cc / 1000).toFixed(1));
     if (car.transmission) parts.push(car.transmission);
     if (car.year) parts.push(car.year.toString());
     if (car.fuel_type) parts.push(car.fuel_type);
     if (car.production_period) parts.push(`(${car.production_period})`);
     return parts.join(' ');
-};
-
-// Fungsi untuk menangani input mobil
-const handleCarInput = () => {
-    // Jika pengguna mengetik manual (bukan memilih dari dropdown), kosongkan car_id
-    if (form.car_id) {
-        form.car_id = null;
-        selectedCar.value = null;
-        carImages.value = [];
-    }
-    
-    // Lakukan pencarian
-    searchCars();
 };
 
 const searchCars = debounce(() => {
@@ -612,25 +602,71 @@ const searchCars = debounce(() => {
         showSuggestions.value = false;
         return;
     }
+    
     isSearching.value = true;
+    
     try {
-        const query = carSearchQuery.value.toLowerCase().trim();
-        filteredCars.value = props.CarDetail.filter(car =>
-            formatCarName(car).toLowerCase().includes(query)
-        );
+        const query = carSearchQuery.value.trim();
+        
+        // Jika data CarDetail tersedia, gunakan fuzzy search
+        if (props.CarDetail && props.CarDetail.length > 0) {
+            // Siapkan data dengan nama yang diformat
+            const carsWithFormattedNames = props.CarDetail.map(car => ({
+                ...car,
+                formattedName: formatCarName(car)
+            }));
+            
+            // Inisialisasi Fuse untuk fuzzy search
+            const fuse = new Fuse(carsWithFormattedNames, {
+                keys: ['formattedName', 'brand.name', 'model.name', 'type.name'],
+                threshold: 0.6,
+                findAllMatches: true,
+                includeScore: true,
+                shouldSort: true
+            });
+            
+            // Lakukan pencarian dan batasi hasil
+            const results = fuse.search(query).slice(0, 10);
+            filteredCars.value = results.map(result => result.item);
+        } else {
+            filteredCars.value = [];
+        }
+        
         showSuggestions.value = true;
     } finally {
         isSearching.value = false;
     }
 }, 300);
 
+const handleCarInput = () => {
+    // Jika user menghapus input atau mengubah, kosongkan car_id
+    if (form.car_id) {
+        form.car_id = null;
+        selectedCar.value = null;
+        carImages.value = [];
+    }
+    
+    // Jika input kosong, sembunyikan dropdown
+    if (!carSearchQuery.value.trim()) {
+        filteredCars.value = [];
+        showSuggestions.value = false;
+        return;
+    }
+    
+    // Lakukan pencarian
+    searchCars();
+};
+
 const handleInputBlur = () => {
     setTimeout(() => {
         showSuggestions.value = false;
         
         // Setelah dropdown tertutup, pastikan car_name sesuai dengan query
-        form.car_name = carSearchQuery.value;
-        updateVehicleData();
+        // Hanya update jika user tidak memilih dari dropdown
+        if (!form.car_id && carSearchQuery.value) {
+            form.car_name = carSearchQuery.value;
+            updateVehicleData();
+        }
     }, 200);
 };
 
@@ -640,13 +676,15 @@ const selectCar = async (car) => {
     form.car_id = car.id;
     form.car_name = formatCarName(car);
     showSuggestions.value = false;
+    
+    // Hentikan pencarian jika ada
+    searchCars.cancel();
+    
     await loadCarImages(car.id);
     updateVehicleData();
-
-     // Kirim status ke parent bahwa ada perubahan yang belum disimpan
+    
+    // Kirim status ke parent
     emit('update:hasUnsavedChanges', isFormChanged.value);
-
-    // Kirim status validasi ke induk
     emit('update:validation', isFormInvalid.value);
 };
 
@@ -796,6 +834,30 @@ watch([() => form.plate_number, () => form.car_name], (newValues) => {
 watch([() => vehicleFeatures.value.rear_door, () => vehicleType.value], () => {
     saveVehicleTypeToLocal();
 });
+
+// Watch untuk reset pencarian ketika carId berubah dari luar
+watch(() => props.inspection?.car_id, (newValue) => {
+    if (newValue !== form.car_id) {
+        form.car_id = newValue;
+        if (newValue && props.CarDetail?.length > 0) {
+            const car = props.CarDetail.find(c => c.id === newValue);
+            if (car) {
+                selectCar(car);
+            }
+        } else if (!newValue && props.inspection?.car_name) {
+            carSearchQuery.value = props.inspection.car_name;
+            form.car_name = props.inspection.car_name;
+            form.car_id = null;
+        }
+    }
+});
+
+// Watch untuk mengupdate carSearchQuery ketika car_name berubah
+watch(() => props.inspection?.car_name, (newValue) => {
+    if (newValue && newValue !== carSearchQuery.value) {
+        carSearchQuery.value = newValue;
+    }
+});
 </script>
 
 <style scoped>
@@ -830,5 +892,13 @@ watch([() => vehicleFeatures.value.rear_door, () => vehicleType.value], () => {
 }
 .group-hover\:scale-105:hover {
     transform: scale(1.05);
+}
+
+/* Style untuk dropdown pencarian */
+.max-h-60 {
+    max-height: 15rem;
+}
+.overflow-y-auto {
+    overflow-y: auto;
 }
 </style>
