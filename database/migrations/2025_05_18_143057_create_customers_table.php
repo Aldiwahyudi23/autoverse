@@ -13,13 +13,20 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
+            
+            // Data identitas customer
             $table->string('name'); // Nama customer
             $table->string('phone')->nullable()->unique(); // Nomor WhatsApp (harus unik)
             $table->string('email')->nullable()->unique(); // Email (opsional, unique jika ada)
-            $table->text('address')->nullable(); // Alamat (opsional)
+            
+            // Data alamat customer
+            $table->text('address')->nullable(); // Alamat lengkap customer
+
             $table->timestamps(); // created_at dan updated_at
             $table->softDeletes(); // Untuk soft delete
-
+            
+            // Index untuk pencarian
+            $table->index('name');
         });
     }
 

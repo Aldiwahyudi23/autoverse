@@ -764,6 +764,7 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
             'car.type',
             'category',
             'customer',
+            'customer.sellers',
             'user',
         ])->findOrFail($id);
 

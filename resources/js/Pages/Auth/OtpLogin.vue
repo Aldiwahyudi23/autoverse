@@ -154,7 +154,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
-import InputError from '@/Components/InputError.vue';
+import InputError from '@/Components/Default/InputError.vue';
 
 const form = useForm({
   phone: '',

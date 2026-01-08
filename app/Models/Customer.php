@@ -78,4 +78,9 @@ class Customer extends Model
     {
         return $this->hasManyThrough(Transaction::class, Inspection::class);
     }
+
+    public function sellers()
+    {
+        return $this->hasMany(Seller::class);
+    }
 }

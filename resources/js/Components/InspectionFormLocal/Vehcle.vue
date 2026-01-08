@@ -220,8 +220,8 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
-import PrimaryButton from '../PrimaryButton.vue';
-import ActionMessage from '../ActionMessage.vue';
+import PrimaryButton from '../Default/PrimaryButton.vue';
+import ActionMessage from '../Default/ActionMessage.vue';
 
 const props = defineProps({
     inspection: {

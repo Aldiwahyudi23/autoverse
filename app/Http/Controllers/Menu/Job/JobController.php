@@ -62,6 +62,7 @@ class JobController extends Controller
                 'car.type',
                 'category',
                 'customer',
+                'customer.sellers',
                 'transaction',
                 'user' // Tambahkan relasi user untuk melihat siapa inspectornya
             ])

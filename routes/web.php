@@ -5,6 +5,7 @@ use App\Http\Controllers\DataCar\CarController;
 use App\Http\Controllers\Finance\TransactionController;
 use App\Http\Controllers\Inspection\InspectionController;
 use App\Http\Controllers\Inspection\RepairEstimationController;
+use App\Http\Controllers\InspectionDataController;
 use App\Http\Controllers\Menu\Home\CoordinatorController;
 use App\Http\Controllers\Menu\Home\HomeController;
 use App\Http\Controllers\Menu\Job\JobController;
@@ -316,7 +317,29 @@ Route::middleware([
     });
 
     
+    Route::post('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer'])
+        ->name('inspections.updateCustomer');
+    
+    Route::post('/inspections/{inspection}/transaction', [InspectionController::class, 'updateTransaction'])
+        ->name('inspections.updateTransaction');
 
+    // Route untuk data inspection
+Route::prefix('inspections-data/{id}')->group(function () {
+    // Data Customer, Seller, dan Transaction
+    Route::post('/store-all-data', [InspectionDataController::class, 'storeAllData'])
+        ->name('inspections-data.storeAllData');
+    
+    Route::get('/get-existing-data', [InspectionDataController::class, 'getExistingData'])
+        ->name('inspections-data.getExistingData');
+});
+
+// Route untuk autocomplete customer
+Route::get('/customers/search', [InspectionDataController::class, 'getCustomers'])
+    ->name('customers.search');
+
+// Route untuk mendapatkan regions aktif dengan inspector
+Route::get('/regions/active', [InspectionDataController::class, 'getActiveRegions'])
+    ->name('regions.active');
         
 });
 

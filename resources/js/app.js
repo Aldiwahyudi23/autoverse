@@ -5,7 +5,7 @@ import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
-import PWAInstallButton from './Components/PWAInstallButton.vue';
+import PWAInstallButton from './Components/Default/PWAInstallButton.vue';
 
 // Import service worker
 import './registerSW';
