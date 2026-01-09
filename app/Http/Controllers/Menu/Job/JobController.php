@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Menu\Job;
 use App\Http\Controllers\Controller;
 use App\Models\DataInspection\Inspection;
 use App\Models\Finance\Transaction;
+use App\Models\Team\RegionTeam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -74,22 +75,25 @@ class JobController extends Controller
             return [$task->id => Crypt::encrypt($task->id)];
         });
         
-        // Get list inspectors untuk admin plant
-        $inspectors = [];
-        if ($user->hasRole('admin_plann')) {
-            $inspectors = \App\Models\User::role('inspector')
-                ->select('id', 'name', 'email', 'numberPhone')
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get();
-        }
+        $team = RegionTeam::with(['user','regions'])
+        ->where('status','active')
+        ->get()
+        ->map(function($regionTeam) {
+            return [
+                'id' => $regionTeam->user->id,
+                'name' => $regionTeam->user->name,
+                'email' => $regionTeam->user->email,
+                'numberPhone' => $regionTeam->user->numberPhone,
+                'region_name' => $regionTeam->regions->name,
+            ];
+        });
 
         return Inertia::render('FrontEnd/Menu/Tugas/Index', [
             'tasks' => $tasks,
             'encryptedIds' => $encryptedIds,
             'userRole' => $user->roles->first()->name,
             'userId' => $user->id,
-            'inspectors' => $inspectors,
+            'team' => $team,
             'filters' => [
                 'search' => $request->search ?? '',
             ],

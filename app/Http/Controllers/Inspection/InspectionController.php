@@ -779,6 +779,15 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
             return redirect()->route('job.index');
         }
 
+        $coverImage = InspectionImage::where('inspection_id', $inspection->id)
+            ->whereHas('point', function ($q) {
+                $q->where('name', 'Depan Kanan');
+            })->first();
+
+        if (!$coverImage) {
+            $coverImage = InspectionImage::where('inspection_id', $inspection->id)->first();
+        }
+
         $transaction = Transaction::where('inspection_id' , $inspection->id)->first();
 
         $encryptedIds = Crypt::encrypt($inspection->id);
@@ -787,6 +796,7 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
             'inspection' => $inspection,
             'transaction' => $transaction,
             'encryptedIds' => $encryptedIds,
+            'coverImage' => $coverImage,
         ]);
     }
 

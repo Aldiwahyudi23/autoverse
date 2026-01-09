@@ -109,14 +109,14 @@ const confirmRelease = () => {
                                         <td class="py-1">{{ dist.user ? dist.user.name : 'Owner' }}</td>
                                         <td class="py-1 flex items-center space-x-2">
                                             <Link
-                                                :href="route('finance.show', dist.id)"
+                                                :href="route('finance.show', dist.encrypted_id)"
                                                 class="text-indigo-600 hover:underline text-xs sm:text-sm"
                                             >
                                                 Detail
                                             </Link>
                                             <button
                                                 v-if="!dist.is_released"
-                                                @click="openConfirmModal(dist.id)"
+                                                @click="openConfirmModal(dist.encrypted_id)"
                                                 :disabled="isReleasing"
                                                 class="flex items-center justify-center px-2 py-1 bg-indigo-600 text-white text-xs sm:text-sm rounded hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed"
                                             >

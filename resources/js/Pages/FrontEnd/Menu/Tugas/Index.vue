@@ -4,14 +4,14 @@ import CardCustomer from '@/Components/Detail/CardCustomer.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { CalendarDaysIcon, ArrowRightIcon, PlusIcon, XMarkIcon, MagnifyingGlassIcon, ArrowPathIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 import { CarIcon } from 'lucide-vue-next';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 
 const props = defineProps({
     tasks: Array,
     encryptedIds: Object,
     userRole: String,
     userId: Number,
-    inspectors: Array,
+    team: Array,
     filters: Object
 });
 
@@ -25,6 +25,11 @@ const cancelReason = ref('');
 const transferReason = ref('');
 const selectedInspector = ref('');
 const searchTerm = ref(props.filters.search);
+
+// Regions data for transfer modal
+const selectedRegion = ref('');
+const regions = ref([]);
+const loadingRegions = ref(false);
 
 // Collapsible states
 const expandedTasks = ref(new Set());
@@ -116,6 +121,43 @@ const openCancelModal = (task) => {
 
 const openTransferModal = (task) => {
     selectedTask.value = task;
+
+    // Auto-select region and inspector based on inspection data
+    if (task.customer?.sellers) {
+        // Find seller with inspection_area
+        const sellerWithArea = task.customer.sellers.find(seller =>
+            seller.inspection_area && (
+                Array.isArray(seller.inspection_area)
+                    ? seller.inspection_area.length > 0
+                    : (typeof seller.inspection_area === 'string' && seller.inspection_area.trim().length > 0)
+            )
+        );
+
+        if (sellerWithArea?.inspection_area) {
+            // Check if any inspection_area matches region names
+            const matchingRegion = regions.value.find(region => {
+                const inspectionArea = sellerWithArea.inspection_area;
+                if (Array.isArray(inspectionArea) && inspectionArea.length > 0) {
+                    // If inspection_area is an array, check if any element matches
+                    return inspectionArea.some(area =>
+                        typeof area === 'string' && area.trim().toLowerCase() === region.name.toLowerCase()
+                    );
+                } else if (typeof inspectionArea === 'string' && inspectionArea.trim().length > 0) {
+                    // If inspection_area is a string, check direct match
+                    return inspectionArea.trim().toLowerCase() === region.name.toLowerCase();
+                }
+                return false;
+            });
+
+            if (matchingRegion) {
+                selectedRegion.value = matchingRegion.id;
+            }
+        } else {
+            // Fallback: try to find region from other data if inspection_area is not available
+            console.warn('inspection_area not found or invalid for seller:', sellerWithArea);
+        }
+    }
+
     showTransferModal.value = true;
 };
 
@@ -345,12 +387,8 @@ const needsModal = (task) => {
 
 // Get seller dari customer
 const getSeller = computed(() => {
-  if (props.tasks.customer && props.tasks.customer.sellers) {
-    return props.tasks.customer.sellers.find(seller => seller.tasks_id === props.tasks.id) || 
-           props.tasks.customer.sellers[0] || 
+    return props.tasks.customer?.sellers?.find(seller => seller.inspection_id === props.tasks.id) || 
            null;
-  }
-  return null;
 });
 
 // Toggle expand/collapse for task details
@@ -372,6 +410,29 @@ watch(searchTerm, () => {
     handleSearch();
 });
 
+// Fetch regions data
+const fetchRegions = async () => {
+    try {
+        loadingRegions.value = true;
+        const response = await fetch('/api/regions/active-with-teams');
+        if (response.ok) {
+            const data = await response.json();
+            regions.value = data.regions || [];
+        } else {
+            console.error('Failed to fetch regions');
+        }
+    } catch (error) {
+        console.error('Error fetching regions:', error);
+    } finally {
+        loadingRegions.value = false;
+    }
+};
+
+// Call fetchRegions on mount
+onMounted(() => {
+    fetchRegions();
+});
+
 // Get warning message for missing data
 const getWarningMessage = (task) => {
     const noCustomer = !task.customer;
@@ -385,6 +446,16 @@ const getWarningMessage = (task) => {
     }
     return '';
 };
+
+// Computed property for filtered inspectors based on selected region
+const filteredInspectors = computed(() => {
+    if (!selectedRegion.value) {
+        return props.team;
+    }
+    const selectedRegionObj = regions.value.find(r => r.id === selectedRegion.value);
+    if (!selectedRegionObj) return [];
+    return props.team.filter(inspector => inspector.region_name === selectedRegionObj.name);
+});
 </script>
 
 <template>
@@ -767,6 +838,31 @@ const getWarningMessage = (task) => {
                     <!-- Form Transfer -->
                     <div class="space-y-4">
                         <div>
+                            <label for="region" class="block text-sm font-medium text-gray-700 mb-1">
+                                Pilih Region
+                            </label>
+                            <select
+                                id="region"
+                                v-model="selectedRegion"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                                :disabled="loadingRegions"
+                            >
+                                <option value="">-- Semua Region --</option>
+                                <option
+                                    v-for="region in regions"
+                                    :key="region.id"
+                                    :value="region.id"
+                                    :disabled="!region.has_active_team"
+                                    :class="{ 'text-gray-400': !region.has_active_team }"
+                                >
+                                    {{ region.name }}
+                                    <span v-if="!region.has_active_team" class="text-xs text-gray-500">(Tidak tersedia)</span>
+                                </option>
+                            </select>
+                            <p v-if="loadingRegions" class="text-xs text-gray-500 mt-1">Memuat data area...</p>
+                        </div>
+
+                        <div>
                             <label for="inspector" class="block text-sm font-medium text-gray-700 mb-1">
                                 Pilih Inspector Baru *
                             </label>
@@ -777,7 +873,7 @@ const getWarningMessage = (task) => {
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                             >
                                 <option value="">-- Pilih Inspector --</option>
-                                <option v-for="inspector in inspectors" :key="inspector.id" :value="inspector.id">
+                                <option v-for="inspector in filteredInspectors" :key="inspector.id" :value="inspector.id">
                                     {{ inspector.name }} ({{ inspector.email }})
                                 </option>
                             </select>

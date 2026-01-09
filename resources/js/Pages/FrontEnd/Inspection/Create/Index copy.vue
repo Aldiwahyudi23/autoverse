@@ -113,32 +113,6 @@
                         >
                     </div>
 
-                    <!-- Area Inspeksi -->
-                    <div v-if="roles.includes('Admin') || roles.includes('coordinator') || roles.includes('admin_plann')" class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2" for="region">
-                            Area Inspeksi *
-                        </label>
-                        <select
-                            id="region"
-                            v-model="form.region_id"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            required
-                        >
-                            <option value="" disabled>Pilih Area Inspeksi</option>
-                            <option
-                                v-for="region in regions"
-                                :key="region.id"
-                                :value="region.id"
-                                :disabled="!region.has_active_team"
-                                :class="{ 'text-gray-400': !region.has_active_team }"
-                            >
-                                {{ region.name }}
-                                <span v-if="!region.has_active_team" class="text-xs text-gray-500">(Tidak tersedia)</span>
-                            </option>
-                        </select>
-                        <p v-if="loadingRegions" class="text-xs text-gray-500 mt-1">Memuat data area...</p>
-                    </div>
-
                     <!-- SELECT INSPECTOR_ID (Hanya untuk Admin & Coordinator) -->
                     <div v-if="roles.includes('Admin') || roles.includes('coordinator') || roles.includes('admin_plann')" class="mb-6">
                         <label class="block text-sm font-medium text-gray-700 mb-2" for="inspector">
@@ -292,7 +266,6 @@ const form = useForm({
     scheduled_at_date: null,
     scheduled_at_time: null,
     inspector_id: null,
-    region_id: null,
 });
 
 const page = usePage();
@@ -303,10 +276,6 @@ const roles = page.props.global.has_roles;
 // State untuk validasi
 const isPlateInvalid = ref(false);
 const minDate = ref(new Date().toISOString().split('T')[0]);
-
-// Regions data
-const regions = ref([]);
-const loadingRegions = ref(false);
 
 // STATE BARU UNTUK DESKRIPSI DAN GAMBAR MOBIL
 const selectedCarDetail = ref(null);
@@ -390,14 +359,9 @@ const filteredInspectors = computed(() => {
     const userIsCoordinator = roles.includes('coordinator');
     const userIsAdminRegion = roles.includes('admin_region');
 
-    if (userIsAdmin) return activeTeam.filter(member => member.region_id === form.region_id);
-    if (userIsAdminPlann) return activeTeam.filter(member => member.region_id === form.region_id);
-    if (userIsCoordinator) {
-        if (form.region_id) {
-            return activeTeam.filter(member => member.region_id === form.region_id);
-        }
-        return activeTeam.filter(member => member.region_id === region.id);
-    }
+    if (userIsAdmin) return activeTeam;
+    if (userIsAdminPlann) return activeTeam;
+    if (userIsCoordinator) return activeTeam.filter(member => member.region_id === region.id);
     if (userIsAdminRegion) return activeTeam.filter(member => member.region_id === region.id);
     return [];
 });
@@ -534,35 +498,9 @@ watch(() => form.car_id, (newCarId) => {
     }
 });
 
-// Watch untuk reset inspector_id ketika region berubah
-watch(() => form.region_id, (newRegionId) => {
-    if (newRegionId && (roles.includes('Admin') || roles.includes('coordinator') || roles.includes('admin_plann'))) {
-        form.inspector_id = null;
-    }
-});
-
-// Fetch regions data
-const fetchRegions = async () => {
-  try {
-    loadingRegions.value = true;
-    const response = await fetch('/api/regions/active-with-teams');
-    if (response.ok) {
-      const data = await response.json();
-      regions.value = data.regions || [];
-    } else {
-      console.error('Failed to fetch regions');
-    }
-  } catch (error) {
-    console.error('Error fetching regions:', error);
-  } finally {
-    loadingRegions.value = false;
-  }
-};
-
 // Add event listener for keyboard navigation
 onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
-    fetchRegions();
 });
 
 onUnmounted(() => {
@@ -582,7 +520,6 @@ const submitInspection = () => {
 
     if (form.is_scheduled) {
         dataToSend.scheduled_at = `${form.scheduled_at_date} ${form.scheduled_at_time}`;
-        dataToSend.region_id = form.region_id;
     }
 
     form.post(route('inspections.store'), {

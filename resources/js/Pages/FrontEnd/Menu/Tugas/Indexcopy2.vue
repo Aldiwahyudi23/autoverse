@@ -87,7 +87,25 @@ const openModal = (task) => {
         return;
     }
 
-    // Untuk inspector biasa, coordinator, dan admin biasa, tampilkan modal konfirmasi
+    // Untuk coordinator: jika task miliknya, behave seperti QC; jika bukan, behave seperti admin_plann
+    if (isInspectorCoordinator.value) {
+        if (task.user_id === props.userId) {
+            // Behave like QC
+            if (task.status === 'pending_review') {
+                router.get(route('inspections.review', { id: props.encryptedIds[task.id] }));
+                return;
+            }
+            // Untuk status lain, tampilkan modal konfirmasi
+            showModal.value = true;
+            return;
+        } else {
+            // Behave like admin_plann
+            router.get(route('inspections.review', { id: props.encryptedIds[task.id] }));
+            return;
+        }
+    }
+
+    // Untuk inspector biasa dan admin biasa, tampilkan modal konfirmasi
     showModal.value = true;
 };
 
@@ -159,6 +177,7 @@ const isAdminPlann = computed(() => props.userRole === 'admin_plann');
 const isInspector = computed(() => props.userRole === 'inspector');
 const isQualityControl = computed(() => props.userRole === 'quality_control');
 const isInspectorCoordinator = computed(() => props.userRole === 'coordinator');
+const isAdmin = computed(() => props.userRole === 'Admin');
 
 // Cek apakah user adalah admin biasa (bukan admin_plann)
 const isRegularAdmin = computed(() => props.userRole === 'Admin');
@@ -199,8 +218,24 @@ const getButtonLabel = (task) => {
         return 'Lihat Detail';
     }
 
-    if (isQualityControl.value || isRegularAdmin.value || isInspectorCoordinator.value) {
-        // QC, Admin biasa, dan Inspector coordinator bisa melakukan semua action seperti inspector
+    // Coordinator: jika task miliknya, behave seperti QC; jika bukan, behave seperti admin_plann
+    if (isInspectorCoordinator.value) {
+        if (task.user_id === props.userId) {
+            // Behave like QC
+            if (task.status === 'draft') return 'Mulai Inspeksi';
+            if (task.status === 'in_progress') return 'Lanjutkan Inspeksi';
+            if (task.status === 'pending_review') return 'Periksa Laporan';
+            if (task.status === 'revision') return 'Lanjutkan Revisi';
+            if (task.status === 'pending') return 'Lanjutkan Inspeksi';
+            return 'Detail';
+        } else {
+            // Behave like admin_plann
+            return 'Lihat Detail';
+        }
+    }
+
+    if (isQualityControl.value || isRegularAdmin.value) {
+        // QC dan Admin biasa bisa melakukan semua action seperti inspector
         if (task.status === 'draft') return 'Mulai Inspeksi';
         if (task.status === 'in_progress') return 'Lanjutkan Inspeksi';
         if (task.status === 'pending_review') return 'Periksa Laporan';
@@ -269,8 +304,10 @@ const formatPhoneForWhatsApp = (numberPhone) => {
 };
 
 // Cek apakah bisa transfer (hanya admin plant untuk status draft)
+const allowedStatus = ['draft', 'pending'];
+
 const canTransfer = (task) => {
-    return isAdminPlann.value && task.status === 'draft';
+  return isAdminPlann.value && allowedStatus.includes(task.status);
 };
 
 // Cek apakah show tombol batal (untuk inspector, coordinator, admin, admin_plann, dan quality_control)
@@ -368,7 +405,7 @@ const getWarningMessage = (task) => {
                 </h3>
                 
                 <!-- Search untuk admin plant dan QC -->
-                <div v-if="isAdminPlann || isQualityControl" 
+                <div v-if="isAdminPlann || isQualityControl || isAdmin || isInspectorCoordinator" 
                      class="flex items-center gap-2">
                     <div v-if="showSearch" class="relative flex-1">
                         <input
@@ -423,10 +460,19 @@ const getWarningMessage = (task) => {
                                 />
                             </Link>
                         </div>
+                         <!-- Tombol transfer untuk admin plant (status draft) -->
+                        <button
+                            v-if="canTransfer(task)"
+                            @click.stop="openTransferModal(task)"
+                            class="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            title="Alihkan ke inspector lain"
+                        >
+                            <ArrowPathIcon class="h-4 w-4 inline" /> Alihkan
+                        </button>
                     </div>
 
                     <!-- Info Inspector (untuk admin plant dan QC) -->
-                    <div v-if="(isAdminPlann || isQualityControl) && task.user" 
+                    <div v-if="(isAdminPlann || isQualityControl || isInspectorCoordinator || isAdmin) && task.user" 
                          class="px-4 py-3 bg-gray-50 border-b">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">

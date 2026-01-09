@@ -336,7 +336,14 @@ public function export(Request $request)
             ->with(['distributions' => function ($q) {
                 $q->where('is_released', 'pending')->with('user');
             }])
-            ->get();
+            ->get()
+            ->map(function ($transaction) {
+                $transaction->distributions = $transaction->distributions->map(function ($distribution) {
+                    $distribution->encrypted_id = Crypt::encrypt($distribution->id);
+                    return $distribution;
+                });
+                return $transaction;
+            });
 
         // Hitung total pending amount
         $totalPendingAmount = $transactions->flatMap->distributions->sum('amount');
@@ -347,6 +354,8 @@ public function export(Request $request)
             ->map(function ($group) {
                 return $group->sum('amount');
             });
+
+        //  $inspectionId = Crypt::encrypt($inspection->id);
             
         return inertia('FrontEnd/Menu/Home/Finance/Tagihan', [
             'transactions' => $transactions,

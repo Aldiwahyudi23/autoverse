@@ -1,16 +1,17 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import CardCustomer from '@/Components/Detail/CardCustomer.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { CalendarDaysIcon, ArrowRightIcon, PlusIcon, XMarkIcon, MagnifyingGlassIcon, ArrowPathIcon, UserIcon } from '@heroicons/vue/24/outline';
+import { CalendarDaysIcon, ArrowRightIcon, PlusIcon, XMarkIcon, MagnifyingGlassIcon, ArrowPathIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 import { CarIcon } from 'lucide-vue-next';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 
 const props = defineProps({
     tasks: Array,
     encryptedIds: Object,
     userRole: String,
     userId: Number,
-    inspectors: Array,
+    team: Array,
     filters: Object
 });
 
@@ -24,6 +25,14 @@ const cancelReason = ref('');
 const transferReason = ref('');
 const selectedInspector = ref('');
 const searchTerm = ref(props.filters.search);
+
+// Regions data for transfer modal
+const selectedRegion = ref('');
+const regions = ref([]);
+const loadingRegions = ref(false);
+
+// Collapsible states
+const expandedTasks = ref(new Set());
 
 // Forms
 const startForm = useForm({});
@@ -83,7 +92,25 @@ const openModal = (task) => {
         return;
     }
 
-    // Untuk inspector biasa, inspector_coordinator, dan admin biasa, tampilkan modal konfirmasi
+    // Untuk coordinator: jika task miliknya, behave seperti QC; jika bukan, behave seperti admin_plann
+    if (isInspectorCoordinator.value) {
+        if (task.user_id === props.userId) {
+            // Behave like QC
+            if (task.status === 'pending_review') {
+                router.get(route('inspections.review', { id: props.encryptedIds[task.id] }));
+                return;
+            }
+            // Untuk status lain, tampilkan modal konfirmasi
+            showModal.value = true;
+            return;
+        } else {
+            // Behave like admin_plann
+            router.get(route('inspections.review', { id: props.encryptedIds[task.id] }));
+            return;
+        }
+    }
+
+    // Untuk inspector biasa dan admin biasa, tampilkan modal konfirmasi
     showModal.value = true;
 };
 
@@ -154,12 +181,18 @@ const submitTransfer = () => {
 const isAdminPlann = computed(() => props.userRole === 'admin_plann');
 const isInspector = computed(() => props.userRole === 'inspector');
 const isQualityControl = computed(() => props.userRole === 'quality_control');
-const isInspectorCoordinator = computed(() => props.userRole === 'inspector_coordinator');
+const isInspectorCoordinator = computed(() => props.userRole === 'coordinator');
+const isAdmin = computed(() => props.userRole === 'Admin');
 
 // Cek apakah user adalah admin biasa (bukan admin_plann)
-const isRegularAdmin = computed(() => props.userRole === 'admin');
+const isRegularAdmin = computed(() => props.userRole === 'Admin');
 
-// Cek apakah tombol disabled untuk inspector dan inspector_coordinator
+// Cek apakah role yang diizinkan untuk melihat warning data hilang
+const canSeeDataWarnings = computed(() => {
+    return ['Admin', 'coordinator', 'admin_plann', 'admin_region'].includes(props.userRole);
+});
+
+// Cek apakah tombol disabled untuk inspector dan coordinator
 const isButtonDisabled = (task) => {
     // Admin biasa bisa mengakses semua
     if (isRegularAdmin.value) return false;
@@ -190,8 +223,24 @@ const getButtonLabel = (task) => {
         return 'Lihat Detail';
     }
 
-    if (isQualityControl.value || isRegularAdmin.value || isInspectorCoordinator.value) {
-        // QC, Admin biasa, dan Inspector coordinator bisa melakukan semua action seperti inspector
+    // Coordinator: jika task miliknya, behave seperti QC; jika bukan, behave seperti admin_plann
+    if (isInspectorCoordinator.value) {
+        if (task.user_id === props.userId) {
+            // Behave like QC
+            if (task.status === 'draft') return 'Mulai Inspeksi';
+            if (task.status === 'in_progress') return 'Lanjutkan Inspeksi';
+            if (task.status === 'pending_review') return 'Periksa Laporan';
+            if (task.status === 'revision') return 'Lanjutkan Revisi';
+            if (task.status === 'pending') return 'Lanjutkan Inspeksi';
+            return 'Detail';
+        } else {
+            // Behave like admin_plann
+            return 'Lihat Detail';
+        }
+    }
+
+    if (isQualityControl.value || isRegularAdmin.value) {
+        // QC dan Admin biasa bisa melakukan semua action seperti inspector
         if (task.status === 'draft') return 'Mulai Inspeksi';
         if (task.status === 'in_progress') return 'Lanjutkan Inspeksi';
         if (task.status === 'pending_review') return 'Periksa Laporan';
@@ -260,13 +309,15 @@ const formatPhoneForWhatsApp = (numberPhone) => {
 };
 
 // Cek apakah bisa transfer (hanya admin plant untuk status draft)
+const allowedStatus = ['draft', 'pending'];
+
 const canTransfer = (task) => {
-    return isAdminPlann.value && task.status === 'draft';
+  return isAdminPlann.value && allowedStatus.includes(task.status);
 };
 
-// Cek apakah show tombol batal (untuk inspector, inspector_coordinator, admin, admin_plann, dan quality_control)
+// Cek apakah show tombol batal (untuk inspector, coordinator, admin, admin_plann, dan quality_control)
 const showCancelButton = (task) => {
-    const canCancelRoles = ['inspector', 'inspector_coordinator', 'admin', 'admin_plann', 'quality_control'];
+    const canCancelRoles = ['inspector', 'coordinator', 'Admin', 'admin_plann', 'quality_control'];
     return canCancelRoles.includes(props.userRole) &&
            ['draft', 'in_progress', 'pending', 'revision'].includes(task.status);
 };
@@ -293,13 +344,80 @@ const needsModal = (task) => {
     // Admin_plann dan QC tidak perlu modal
     if (isAdminPlann.value || isQualityControl.value) return false;
     
-    // Inspector, inspector_coordinator, dan admin biasa perlu modal untuk konfirmasi
-    return ['inspector', 'inspector_coordinator', 'admin'].includes(props.userRole);
+    // Inspector, coordinator, dan admin biasa perlu modal untuk konfirmasi
+    return ['inspector', 'coordinator', 'Admin'].includes(props.userRole);
+};
+
+// Get seller dari customer
+const getSeller = computed(() => {
+    return props.tasks.customer?.sellers?.find(seller => seller.inspection_id === props.tasks.id) || 
+           null;
+});
+
+// Toggle expand/collapse for task details
+const toggleTaskExpansion = (taskId) => {
+    if (expandedTasks.value.has(taskId)) {
+        expandedTasks.value.delete(taskId);
+    } else {
+        expandedTasks.value.add(taskId);
+    }
+};
+
+// Check if task is expanded
+const isTaskExpanded = (taskId) => {
+    return expandedTasks.value.has(taskId);
 };
 
 // Watch search term
 watch(searchTerm, () => {
     handleSearch();
+});
+
+// Fetch regions data
+const fetchRegions = async () => {
+    try {
+        loadingRegions.value = true;
+        const response = await fetch('/api/regions/active-with-teams');
+        if (response.ok) {
+            const data = await response.json();
+            regions.value = data.regions || [];
+        } else {
+            console.error('Failed to fetch regions');
+        }
+    } catch (error) {
+        console.error('Error fetching regions:', error);
+    } finally {
+        loadingRegions.value = false;
+    }
+};
+
+// Call fetchRegions on mount
+onMounted(() => {
+    fetchRegions();
+});
+
+// Get warning message for missing data
+const getWarningMessage = (task) => {
+    const noCustomer = !task.customer;
+    const noTransaction = !task.transaction;
+    if (noCustomer && noTransaction) {
+        return 'Belum ada data cust dan transaksi';
+    } else if (noCustomer) {
+        return 'Belum ada data cust';
+    } else if (noTransaction) {
+        return 'Belum ada transaksi';
+    }
+    return '';
+};
+
+// Computed property for filtered inspectors based on selected region
+const filteredInspectors = computed(() => {
+    if (!selectedRegion.value) {
+        return props.team;
+    }
+    const selectedRegionObj = regions.value.find(r => r.id === selectedRegion.value);
+    if (!selectedRegionObj) return [];
+    return props.team.filter(inspector => inspector.region_name === selectedRegionObj.name);
 });
 </script>
 
@@ -321,7 +439,7 @@ watch(searchTerm, () => {
                 </h3>
                 
                 <!-- Search untuk admin plant dan QC -->
-                <div v-if="isAdminPlann || isQualityControl" 
+                <div v-if="isAdminPlann || isQualityControl || isAdmin || isInspectorCoordinator" 
                      class="flex items-center gap-2">
                     <div v-if="showSearch" class="relative flex-1">
                         <input
@@ -359,11 +477,24 @@ watch(searchTerm, () => {
                 >
                     <!-- Status Badge -->
                     <div class="px-4 py-2 border-b flex justify-between items-center">
-                        <span :class="['px-2 py-1 text-xs font-medium rounded-full', getStatusColor(task.status)]">
-                            {{ task.status.replace('_', ' ').toUpperCase() }}
-                        </span>
-                        
-                        <!-- Tombol transfer untuk admin plant (status draft) -->
+                        <div class="flex items-center gap-2">
+                            <span :class="['px-2 py-1 text-xs font-medium rounded-full', getStatusColor(task.status)]">
+                                {{ task.status.replace('_', ' ').toUpperCase() }}
+                            </span>
+
+                            <!-- Warning untuk data customer/transaksi hilang -->
+                            <Link
+                                v-if="canSeeDataWarnings && (!task.customer || !task.transaction)"
+                                :href="route('inspections.review', { id: encryptedIds[task.id] })"
+                                class="cursor-pointer"
+                            >
+                                <ExclamationTriangleIcon
+                                    class="h-5 w-5 text-yellow-500"
+                                    :title="getWarningMessage(task)"
+                                />
+                            </Link>
+                        </div>
+                         <!-- Tombol transfer untuk admin plant (status draft) -->
                         <button
                             v-if="canTransfer(task)"
                             @click.stop="openTransferModal(task)"
@@ -375,7 +506,7 @@ watch(searchTerm, () => {
                     </div>
 
                     <!-- Info Inspector (untuk admin plant dan QC) -->
-                    <div v-if="(isAdminPlann || isQualityControl) && task.user" 
+                    <div v-if="(isAdminPlann || isQualityControl || isInspectorCoordinator || isAdmin) && task.user" 
                          class="px-4 py-3 bg-gray-50 border-b">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">
@@ -426,67 +557,56 @@ watch(searchTerm, () => {
                     </div>
 
                     <!-- Mobil -->
-                    <div class="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                        <div class="flex items-center">
-                            <CarIcon class="h-5 w-5 text-gray-500 mr-2" />
-                            <div class="text-sm font-medium text-gray-800">
-                                <div v-if="task.car">
-                                    {{ `${task.car.brand.name} ${task.car.model.name} ${task.car.type.name} ${(task.car.cc / 1000).toFixed(1)} ${task.car.transmission} ${task.car.year}` }}
-                                    <span class="text-gray-600">({{ task.car.fuel_type }})</span>
-                                </div>
-                                <div v-else>
-                                    {{ task.car_name }}
+                    <div
+                        @click="toggleTaskExpansion(task.id)"
+                        class="px-4 py-3 bg-gray-50 border-t border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                    >
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center flex-1">
+                                <CarIcon class="h-5 w-5 text-gray-500 mr-2" />
+                                <div class="text-sm font-medium text-gray-800">
+                                    <div v-if="task.car">
+                                        {{ `${task.car.brand.name} ${task.car.model.name} ${task.car.type.name} ${(task.car.cc / 1000).toFixed(1)} ${task.car.transmission} ${task.car.year}` }}
+                                        <span class="text-gray-600">({{ task.car.fuel_type }})</span>
+                                    </div>
+                                    <div v-else>
+                                        {{ task.car_name }}
+                                    </div>
                                 </div>
                             </div>
+                            <!-- Expand/Collapse Icon -->
+                            <svg
+                                :class="['h-5 w-5 text-gray-400 transition-transform', isTaskExpanded(task.id) ? 'rotate-180' : '']"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
                         </div>
 
                         <!-- Nomor Plat Mobil -->
-                        <div class="flex items-center mt -2">
-                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 mr-2">NO POLISI:</span>
+                        <div class="flex items-center mt-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 mr-2">NO POLISI: </span>
                             <span class="text-sm font-bold text-gray-900">{{ task.plate_number }}</span>
                         </div>
+                    </div>
 
+                    <!-- Collapsible Content -->
+                    <div v-show="isTaskExpanded(task.id)" class="transition-all duration-300 ease-in-out">
                         <!-- Informasi Customer & Transaksi -->
-                        <div class="py-3 bg-white border-t border-gray-100">
+                        <div class="px-4 py-3 bg-white border-t border-gray-100">
                             <!-- Data Customer -->
-                            <div 
-                                v-if="task.customer" 
-                                class="mb-3 p-2 rounded bg-green-50 border border-green-200"
-                            >
-                                <p class="text-xs font-medium text-gray-500">Customer</p>
-                                
-                                <div class="flex items-center justify-between">
-                                    <!-- Nama dan No HP -->
-                                    <div>
-                                        <p class="text-sm font-semibold text-gray-800">{{ task.customer.name }}</p>
-                                        <p class="text-xs text-gray-600">{{ task.customer.phone }}</p>
-                                    </div>
-
-                                    <!-- Icon WhatsApp -->
-                                    <a
-                                        v-if="task.customer.phone"
-                                        :href="`https://wa.me/62${task.customer.phone.replace(/^0/, '')}`"
-                                        target="_blank"
-                                        class="text-green-600 hover:text-green-800 ml-2"
-                                        title="Hubungi via WhatsApp"
-                                    >
-                                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.864 3.488"/>
-                                        </svg>
-                                    </a>
-                                </div>
-                            </div>
-
-                            <div 
-                                v-else 
-                                class="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded"
-                            >
-                                <p class="text-xs text-yellow-700">Data customer belum tersedia</p>
-                            </div>
+                            <CardCustomer
+                                :customer="task.customer"
+                                :seller="task.customer?.sellers?.find(s => s.inspection_id === task.id) ||  null"
+                                :inspection="task"
+                                :userRole="props.userRole"
+                            />
 
                             <!-- Data Transaksi -->
-                            <div 
-                                v-if="task.transaction" 
+                            <div
+                                v-if="task.transaction"
                                 class="p-2 rounded"
                                 :class="{
                                 'bg-green-50 border border-green-200': task?.transaction.status === 'paid',
@@ -504,51 +624,45 @@ watch(searchTerm, () => {
                                 </span>
                                 </div>
                             </div>
-                            <div 
-                                v-else 
+                            <div
+                                v-else
                                 class="p-2 bg-yellow-50 border border-yellow-200 rounded"
                             >
                                 <p class="text-xs text-yellow-700">Data transaksi belum tersedia</p>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Kategori -->
-                    <div v-if="task.category" class="px-4 py-2 bg-white border-t border-gray-100">
-                        <p class="text-xs font-medium text-gray-500 tracking-wide">Kategori Inspek</p>
-                        <p class="text-sm text-gray-800">{{ task.category.name }}</p>
-                    </div>
+                        <!-- Buttons Container -->
+                        <div class="p-4 flex space-x-2">
+                            <!-- Tombol Batal (untuk inspector, coordinator, dan admin biasa) -->
+                            <button
+                                v-if="showCancelButton(task)"
+                                @click.stop="openCancelModal(task)"
+                                type="button"
+                                class="px-3 py-2 bg-gray-200 text-gray-700 font-medium rounded-md text-sm hover:bg-gray-300 transition-colors"
+                            >
+                                Batal
+                            </button>
 
-                    <!-- Buttons Container -->
-                    <div class="p-4 flex space-x-2">
-                        <!-- Tombol Batal (untuk inspector, inspector_coordinator, dan admin biasa) -->
-                        <button
-                            v-if="showCancelButton(task)"
-                            @click.stop="openCancelModal(task)"
-                            type="button"
-                            class="flex-1 px-3 py-2 bg-gray-200 text-gray-700 font-medium rounded-md text-sm hover:bg-gray-300 transition-colors"
-                        >
-                            Batal
-                        </button>
-
-                        <!-- Tombol Utama -->
-                        <button
-                            @click="openModal(task)"
-                            :disabled="isButtonDisabled(task)"
-                            :class="[
-                                'flex-1 inline-flex items-center justify-center px-3 py-2 font-medium rounded-md text-sm transition-colors',
-                                isAdminPlann
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700' 
-                                    : isQualityControl
-                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
-                                        : !isButtonDisabled(task)
-                                            ? 'bg-gradient-to-r from-indigo-700 to-sky-600 text-white hover:from-indigo-800 hover:to-sky-700'
-                                            : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            ]"
-                        >
-                            {{ getButtonLabel(task) }}
-                            <ArrowRightIcon v-if="!isAdminPlann && !isQualityControl && !isButtonDisabled(task)" class="ml-2 h-4 w-4" />
-                        </button>
+                            <!-- Tombol Utama -->
+                            <button
+                                @click="openModal(task)"
+                                :disabled="isButtonDisabled(task)"
+                                :class="[
+                                    'flex-1 inline-flex items-center justify-center px-3 py-2 font-medium rounded-md text-sm transition-colors',
+                                    isAdminPlann
+                                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+                                        : isQualityControl
+                                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+                                            : !isButtonDisabled(task)
+                                                ? 'bg-gradient-to-r from-indigo-700 to-sky-600 text-white hover:from-indigo-800 hover:to-sky-700'
+                                                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                ]"
+                            >
+                                {{ getButtonLabel(task) }}
+                                <ArrowRightIcon v-if="!isAdminPlann && !isQualityControl && !isButtonDisabled(task)" class="ml-2 h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -585,7 +699,7 @@ watch(searchTerm, () => {
             <PlusIcon class="h-6 w-6" />
         </Link>
 
-        <!-- Modal Konfirmasi Mulai/Lanjutkan Inspeksi (untuk inspector, inspector_coordinator, admin biasa, dan QC) -->
+        <!-- Modal Konfirmasi Mulai/Lanjutkan Inspeksi (untuk inspector, coordinator, admin biasa, dan QC) -->
         <div
             v-if="showModal && (isInspector || isInspectorCoordinator || isRegularAdmin || isQualityControl)"
             class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50"
@@ -687,6 +801,31 @@ watch(searchTerm, () => {
                     <!-- Form Transfer -->
                     <div class="space-y-4">
                         <div>
+                            <label for="region" class="block text-sm font-medium text-gray-700 mb-1">
+                                Pilih Region
+                            </label>
+                            <select
+                                id="region"
+                                v-model="selectedRegion"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                                :disabled="loadingRegions"
+                            >
+                                <option value="">-- Semua Region --</option>
+                                <option
+                                    v-for="region in regions"
+                                    :key="region.id"
+                                    :value="region.id"
+                                    :disabled="!region.has_active_team"
+                                    :class="{ 'text-gray-400': !region.has_active_team }"
+                                >
+                                    {{ region.name }}
+                                    <span v-if="!region.has_active_team" class="text-xs text-gray-500">(Tidak tersedia)</span>
+                                </option>
+                            </select>
+                            <p v-if="loadingRegions" class="text-xs text-gray-500 mt-1">Memuat data area...</p>
+                        </div>
+
+                        <div>
                             <label for="inspector" class="block text-sm font-medium text-gray-700 mb-1">
                                 Pilih Inspector Baru *
                             </label>
@@ -697,7 +836,7 @@ watch(searchTerm, () => {
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                             >
                                 <option value="">-- Pilih Inspector --</option>
-                                <option v-for="inspector in inspectors" :key="inspector.id" :value="inspector.id">
+                                <option v-for="inspector in filteredInspectors" :key="inspector.id" :value="inspector.id">
                                     {{ inspector.name }} ({{ inspector.email }})
                                 </option>
                             </select>

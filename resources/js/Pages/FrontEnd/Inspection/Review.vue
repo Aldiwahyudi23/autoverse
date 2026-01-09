@@ -18,7 +18,8 @@ const props = defineProps({
     required: true
   },
   encryptedIds: Object,
-  transaction: Object
+  transaction: Object,
+  coverImage: Object || null,
 });
 
 const page = usePage();
@@ -33,6 +34,9 @@ const isAdminOrCoordinator = computed(() => {
 
 const isCoordinator = computed(() => {
   return roles.includes('coordinator');
+});
+const isadminplann = computed(() => {
+  return roles.includes('admin_plann');
 });
 
 const isAdmin = computed(() => {
@@ -52,9 +56,15 @@ const userRole = computed(() => {
 const showRevisionModal = ref(false);
 const showEmailModal = ref(false);
 const showAllDataModal = ref(false);
+const showImageModal = ref(false);
 const emailAddress = ref('');
 const isLoading = ref(false);
 const currentAction = ref(null);
+
+const coverImage = ref(props.coverImage)
+
+const imageExists = (imagePath) => imagePath && imagePath.length > 0
+const getImageUrl = (imagePath) => `/${imagePath}`
 
 // Computed properties
 const formatCc = (cc) => {
@@ -267,7 +277,17 @@ const getSeller = computed(() => {
         <!-- Mobil -->
         <div class="px-4 py-3 bg-gray-50 border-t border-gray-100">
           <div class="flex items-center">
-            <CarIcon class="h-5 w-5 text-gray-500 mr-2" />
+            <!-- Cover Image or Car Icon -->
+            <div v-if="coverImage && imageExists(coverImage.image_path)" class="mr-2">
+              <img
+                :src="getImageUrl(coverImage.image_path)"
+                alt="Cover Image"
+                class="h-12 w-12 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                @click="showImageModal = true"
+              />
+            </div>
+            <CarIcon v-else class="h-5 w-5 text-gray-500 mr-2" />
+
             <div class="text-sm font-medium text-gray-800">
               <div v-if="inspection.car">
                 {{ `${inspection.car.brand.name} ${inspection.car.model.name} ${inspection.car.type.name} ${(inspection.car.cc / 1000).toFixed(1)} ${inspection.car.transmission} ${inspection.car.year}` }}
@@ -289,7 +309,7 @@ const getSeller = computed(() => {
 
             <!-- Link ke Detail -->
             <Link
-              v-if="inspection.status === 'draft' && isAdminOrCoordinator"
+              v-if="inspection.status === 'draft' && isAdminOrCoordinator || isadminplann"
               :href="route('coordinator.inspections.show', encryptedIds)"
               class="text-xs font-semibold text-indigo-600 hover:underline"
             >
@@ -645,6 +665,18 @@ const getSeller = computed(() => {
             Masih dalam pengembangan
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal for Full Image -->
+    <div v-if="showImageModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" @click="showImageModal = false">
+      <div class="relative max-w-4xl max-h-full p-4">
+        <img :src="getImageUrl(coverImage.image_path)" alt="Full Cover Image" class="max-w-full max-h-full object-contain" />
+        <button @click="showImageModal = false" class="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   </AppLayout>
