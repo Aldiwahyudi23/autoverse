@@ -35,6 +35,8 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 const currentStep = ref(1);
 const showSellerForm = ref(false);
+const customerErrors = ref({});
+const sellerErrors = ref({});
 
 // Inertia Form
 const form = useForm({
@@ -67,24 +69,34 @@ const isFormValid = computed(() => {
   if (!form.customer_name || !form.customer_phone) {
     return false;
   }
-  
+
+  // Check for customer validation errors
+  if (Object.values(customerErrors.value).some(error => error)) {
+    return false;
+  }
+
   // Validasi Seller Form (hanya jika harus ditampilkan)
   if (showSellerForm.value) {
-    if (!form.seller_inspection_area || 
-        !form.seller_inspection_address || 
-        !form.seller_unit_holder_name || 
+    if (!form.seller_inspection_area ||
+        !form.seller_inspection_address ||
+        !form.seller_unit_holder_name ||
         !form.seller_unit_holder_phone) {
       return false;
     }
+
+    // Check for seller validation errors
+    if (Object.values(sellerErrors.value).some(error => error)) {
+      return false;
+    }
   }
-  
+
   // Validasi Transaction Form
-  if (!form.transaction_amount || 
-      !form.transaction_payment_method || 
+  if (!form.transaction_amount ||
+      !form.transaction_payment_method ||
       !form.transaction_status) {
     return false;
   }
-  
+
   return true;
 });
 
@@ -122,10 +134,13 @@ onMounted(() => {
 });
 
 // Watch customer form untuk menentukan apakah seller form harus ditampilkan
-watch(() => form.customer_name, (newValue) => {
-  if (newValue && form.customer_phone) {
+watch([() => form.customer_name, () => form.customer_phone], ([newName, newPhone]) => {
+  if (newName && newPhone) {
     showSellerForm.value = true;
     currentStep.value = 2;
+  } else {
+    showSellerForm.value = false;
+    currentStep.value = 1;
   }
 });
 
@@ -166,19 +181,22 @@ const submitForm = () => {
     return;
   }
 
+  // Don't close modal immediately - wait for success
+  // emit('close');
+
   // Format phone numbers sebelum submit
   const formattedData = {
     ...form.data(),
-    
+
     // Format phone numbers dengan +62
-    customer_phone: form.customer_phone.startsWith('62') 
-      ? form.customer_phone 
+    customer_phone: form.customer_phone.startsWith('62')
+      ? form.customer_phone
       : '62' + form.customer_phone.replace(/^0/, ''),
-    
-    seller_unit_holder_phone: form.seller_unit_holder_phone.startsWith('62') 
-      ? form.seller_unit_holder_phone 
+
+    seller_unit_holder_phone: form.seller_unit_holder_phone.startsWith('62')
+      ? form.seller_unit_holder_phone
       : '62' + form.seller_unit_holder_phone.replace(/^0/, ''),
-    
+
     // Konversi amount ke number
     transaction_amount: parseInt(form.transaction_amount, 10)
   };
@@ -186,10 +204,13 @@ const submitForm = () => {
   form.post(`/inspections-data/${props.inspectionId}/store-all-data`, formattedData, {
     preserveScroll: true,
     onSuccess: () => {
+      // Close modal only on success
       emit('close');
       emit('saved');
     },
     onError: (errors) => {
+      // Don't reopen modal - keep it open to show errors
+      // emit('reopen');
       errorMessage.value = Object.values(errors)[0] || 'Gagal menyimpan data';
     }
   });
@@ -240,6 +261,7 @@ const submitForm = () => {
             :existing-seller="existingSeller"
             @update:form="updateCustomerForm"
             @customer-selected="handleCustomerSelected"
+            @update:errors="(errors) => customerErrors = errors"
           />
         </div>
 
@@ -267,6 +289,7 @@ const submitForm = () => {
             :show-form="showSellerForm"
             :existing-seller="existingSeller"
             @update:form="updateSellerForm"
+            @update:errors="(errors) => sellerErrors = errors"
           />
         </div>
 

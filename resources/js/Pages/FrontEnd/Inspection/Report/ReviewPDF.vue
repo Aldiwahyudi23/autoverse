@@ -1,5 +1,23 @@
 <template>
   <div class="p-6 bg-white rounded-lg shadow-md">
+    <!-- Alert Messages -->
+    <div v-if="$page.props.flash.success" class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+      <div class="flex">
+        <svg class="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <span>{{ $page.props.flash.success }}</span>
+      </div>
+    </div>
+
+    <div v-if="$page.props.flash.error" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+      <div class="flex">
+        <svg class="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+        <span>{{ $page.props.flash.error }}</span>
+      </div>
+    </div>
 
     <!-- Konten Laporan -->
     <div v-if="hasDataOrImages">
@@ -333,6 +351,33 @@
       @close="closeEstimationModal"
       @saved="handleEstimationSaved"
     />
+
+    <!-- Scroll to Top/Bottom Buttons -->
+    <div v-if="showScrollButtons" class="fixed bottom-6 right-6 flex flex-col gap-2 z-40">
+      <!-- Scroll to Top Button - Show when scrolling up -->
+      <button
+        v-if="scrollDirection === 'up'"
+        @click="scrollToTop"
+        class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110"
+        title="Scroll ke atas"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
+
+      <!-- Scroll to Bottom Button - Show when scrolling down -->
+      <button
+        v-if="scrollDirection === 'down'"
+        @click="scrollToBottom"
+        class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110"
+        title="Scroll ke bawah"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V4" />
+        </svg>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -376,6 +421,12 @@ const totalRepairCost = ref(props.totalRepairCost)
 // Repair estimation modal state
 const showEstimationModal = ref(false)
 const selectedEstimationData = ref(null)
+
+// Scroll buttons state
+const showScrollButtons = ref(false)
+const scrollDirection = ref('') // 'up' or 'down'
+const lastScrollY = ref(0)
+const idleTimer = ref(null)
 
 // Role checking
 const userRoles = computed(() => page.props.global?.has_roles || [])
@@ -427,6 +478,47 @@ const fetchInspection = async () => {
 
 onMounted(() => {
   setInterval(fetchInspection, 5000) // polling tiap 5 detik
+
+  // Scroll event listener for showing/hiding scroll buttons
+  const handleScroll = () => {
+    const currentScrollY = window.scrollY
+
+    // Detect scroll direction
+    if (currentScrollY > lastScrollY.value) {
+      scrollDirection.value = 'down'
+    } else if (currentScrollY < lastScrollY.value) {
+      scrollDirection.value = 'up'
+    }
+
+    lastScrollY.value = currentScrollY
+
+    // Show buttons only if scrolled past threshold and during scroll activity
+    if (currentScrollY > 200) {
+      showScrollButtons.value = true
+
+      // Clear existing timer
+      if (idleTimer.value) {
+        clearTimeout(idleTimer.value)
+      }
+
+      // Set timer to hide buttons after 2 seconds of inactivity
+      idleTimer.value = setTimeout(() => {
+        showScrollButtons.value = false
+      }, 2000)
+    } else {
+      showScrollButtons.value = false
+    }
+  }
+
+  window.addEventListener('scroll', handleScroll)
+
+  // Cleanup on unmount
+  return () => {
+    window.removeEventListener('scroll', handleScroll)
+    if (idleTimer.value) {
+      clearTimeout(idleTimer.value)
+    }
+  }
 })
 
 const updateEstimations = (newEstimations) => {
@@ -461,6 +553,21 @@ const handleEstimationSaved = (estimation) => {
   // Add the new estimation to the repairEstimations array
   repairEstimations.value.push(estimation)
   closeEstimationModal()
+}
+
+// Scroll functions
+const scrollToTop = () => {
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  })
+}
+
+const scrollToBottom = () => {
+  window.scrollTo({
+    top: document.documentElement.scrollHeight,
+    behavior: 'smooth'
+  })
 }
 
 const groupedPoints = computed(() => {

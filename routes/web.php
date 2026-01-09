@@ -296,10 +296,7 @@ Route::middleware([
         Route::get('/team/export', [TeamController::class, 'export'])->name('team.export');
     });
 
-        // ======================TRANSAKSI & FINANCE ROUTES==============================
-    Route::post('/inspections/{inspection}/update-unified', [TransactionController::class, 'updateUnified'])
-        ->name('inspections.updateUnified')
-        ->middleware('permission:FrontEnd.update transaction');
+    // ======================TRANSAKSI & FINANCE ROUTES==============================
 
     Route::middleware('permission:FrontEnd.view finance')->group(function () {
          Route::get('/finance/report', [TransactionController::class, 'index'])
@@ -316,30 +313,20 @@ Route::middleware([
 
     });
 
-    
-    Route::post('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer'])
-        ->name('inspections.updateCustomer');
-    
-    Route::post('/inspections/{inspection}/transaction', [InspectionController::class, 'updateTransaction'])
-        ->name('inspections.updateTransaction');
+    Route::prefix('inspections-data/{id}') ->middleware('permission:FrontEnd.update transaction')
+    ->group(function () {
+        // Data Customer, Seller, dan Transaction
+        Route::post('/store-all-data', [InspectionDataController::class, 'storeAllData'])
+            ->name('inspections-data.storeAllData');
+        
+        Route::get('/get-existing-data', [InspectionDataController::class, 'getExistingData'])
+            ->name('inspections-data.getExistingData');
+    });
 
-    // Route untuk data inspection
-Route::prefix('inspections-data/{id}')->group(function () {
-    // Data Customer, Seller, dan Transaction
-    Route::post('/store-all-data', [InspectionDataController::class, 'storeAllData'])
-        ->name('inspections-data.storeAllData');
-    
-    Route::get('/get-existing-data', [InspectionDataController::class, 'getExistingData'])
-        ->name('inspections-data.getExistingData');
-});
+    // Route untuk autocomplete customer
+    Route::get('/customers/search', [InspectionDataController::class, 'getCustomers'])
+        ->name('customers.search');
 
-// Route untuk autocomplete customer
-Route::get('/customers/search', [InspectionDataController::class, 'getCustomers'])
-    ->name('customers.search');
-
-// Route untuk mendapatkan regions aktif dengan inspector
-Route::get('/regions/active', [InspectionDataController::class, 'getActiveRegions'])
-    ->name('regions.active');
         
 });
 

@@ -11,13 +11,25 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">
           Area Inspeksi *
         </label>
-        <input
+        <select
           v-model="form.seller_inspection_area"
-          type="text"
           required
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          placeholder="Contoh: Jakarta Selatan, Surabaya Barat"
-        />
+          :disabled="loadingRegions"
+        >
+          <option value="" disabled>Pilih Area Inspeksi</option>
+          <option
+            v-for="region in regions"
+            :key="region.id"
+            :value="region.name"
+            :disabled="!region.has_active_team"
+            :class="{ 'text-gray-400': !region.has_active_team }"
+          >
+            {{ region.name }}
+            <span v-if="!region.has_active_team" class="text-xs text-gray-500">(Tidak tersedia)</span>
+          </option>
+        </select>
+        <p v-if="loadingRegions" class="text-xs text-gray-500 mt-1">Memuat data area...</p>
       </div>
 
       <!-- Alamat Inspeksi -->
@@ -27,11 +39,13 @@
         </label>
         <textarea
           v-model="form.seller_inspection_address"
+          @blur="validateAddress"
           rows="3"
           required
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           placeholder="Alamat lengkap lokasi inspeksi"
         ></textarea>
+        <p v-if="errors.seller_inspection_address" class="text-xs text-red-600 mt-1">{{ errors.seller_inspection_address }}</p>
       </div>
 
       <!-- Google Maps Link -->
@@ -81,11 +95,13 @@
           </label>
           <input
             v-model="form.seller_unit_holder_name"
+            @blur="validateName"
             type="text"
             required
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Nama orang yang memegang unit"
           />
+          <p v-if="errors.seller_unit_holder_name" class="text-xs text-red-600 mt-1">{{ errors.seller_unit_holder_name }}</p>
         </div>
 
         <div>
@@ -98,12 +114,14 @@
             </div>
             <input
               v-model="form.seller_unit_holder_phone"
+              @blur="validatePhone"
               type="tel"
               required
               class="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               placeholder="8123456789"
             />
           </div>
+          <p v-if="errors.seller_unit_holder_phone" class="text-xs text-red-600 mt-1">{{ errors.seller_unit_holder_phone }}</p>
         </div>
       </div>
     </div>
@@ -113,7 +131,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue';
 
-const emit = defineEmits(['update:form']);
+const emit = defineEmits(['update:form', 'update:errors']);
 
 const props = defineProps({
   formData: {
@@ -130,6 +148,10 @@ const props = defineProps({
   }
 });
 
+// Regions data
+const regions = ref([]);
+const loadingRegions = ref(false);
+
 // Form
 const form = ref({
   seller_inspection_area: '',
@@ -140,8 +162,36 @@ const form = ref({
   seller_settings: {}
 });
 
+// Errors
+const errors = ref({
+  seller_inspection_address: '',
+  seller_link_maps: '',
+  seller_unit_holder_name: '',
+  seller_unit_holder_phone: ''
+});
+
+// Fetch regions data
+const fetchRegions = async () => {
+  try {
+    loadingRegions.value = true;
+    const response = await fetch('/api/regions/active-with-teams');
+    if (response.ok) {
+      const data = await response.json();
+      regions.value = data.regions || [];
+    } else {
+      console.error('Failed to fetch regions');
+    }
+  } catch (error) {
+    console.error('Error fetching regions:', error);
+  } finally {
+    loadingRegions.value = false;
+  }
+};
+
 // Inisialisasi form
 onMounted(() => {
+  fetchRegions();
+
   if (props.existingSeller) {
     form.value = {
       seller_inspection_area: props.existingSeller.inspection_area || '',
@@ -218,6 +268,38 @@ const searchInMaps = () => {
   } else if (form.value.seller_inspection_address) {
     const searchQuery = encodeURIComponent(form.value.seller_inspection_address);
     window.open(`https://www.google.com/maps/search/?api=1&query=${searchQuery}`, '_blank', 'noopener,noreferrer');
+  }
+};
+
+// Validation functions
+const validateAddress = () => {
+  if (!form.value.seller_inspection_address.trim()) {
+    errors.value.seller_inspection_address = 'Alamat inspeksi wajib diisi';
+  } else if (form.value.seller_inspection_address.trim().length < 5) {
+    errors.value.seller_inspection_address = 'Alamat inspeksi minimal 5 karakter';
+  } else {
+    errors.value.seller_inspection_address = '';
+  }
+};
+
+const validateName = () => {
+  if (!form.value.seller_unit_holder_name.trim()) {
+    errors.value.seller_unit_holder_name = 'Nama penanggung jawab wajib diisi';
+  } else if (form.value.seller_unit_holder_name.trim().length < 3) {
+    errors.value.seller_unit_holder_name = 'Nama penanggung jawab minimal 3 karakter';
+  } else {
+    errors.value.seller_unit_holder_name = '';
+  }
+};
+
+const validatePhone = () => {
+  const phone = form.value.seller_unit_holder_phone.trim();
+  if (!phone) {
+    errors.value.seller_unit_holder_phone = 'Nomor WhatsApp wajib diisi';
+  } else if (!/^\d{9,14}$/.test(phone)) {
+    errors.value.seller_unit_holder_phone = 'Nomor WhatsApp harus 9-14 digit angka';
+  } else {
+    errors.value.seller_unit_holder_phone = '';
   }
 };
 </script>

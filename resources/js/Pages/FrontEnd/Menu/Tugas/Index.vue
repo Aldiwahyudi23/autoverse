@@ -177,6 +177,7 @@ const isAdminPlann = computed(() => props.userRole === 'admin_plann');
 const isInspector = computed(() => props.userRole === 'inspector');
 const isQualityControl = computed(() => props.userRole === 'quality_control');
 const isInspectorCoordinator = computed(() => props.userRole === 'coordinator');
+const isAdmin = computed(() => props.userRole === 'Admin');
 
 // Cek apakah user adalah admin biasa (bukan admin_plann)
 const isRegularAdmin = computed(() => props.userRole === 'Admin');
@@ -404,7 +405,7 @@ const getWarningMessage = (task) => {
                 </h3>
                 
                 <!-- Search untuk admin plant dan QC -->
-                <div v-if="isAdminPlann || isQualityControl" 
+                <div v-if="isAdminPlann || isQualityControl || isAdmin || isInspectorCoordinator" 
                      class="flex items-center gap-2">
                     <div v-if="showSearch" class="relative flex-1">
                         <input

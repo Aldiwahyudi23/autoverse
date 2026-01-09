@@ -117,17 +117,17 @@ const form = ref({
 // Inisialisasi form
 onMounted(() => {
   if (props.existingTransaction) {
-    const amount = props.existingTransaction.amount || 0;
+    const amount = parseFloat(props.existingTransaction.amount) || 0;
     form.value = {
       transaction_amount: amount,
       transaction_payment_method: props.existingTransaction.payment_method || '',
       transaction_status: props.existingTransaction.status || 'pending',
-      transaction_payment_date: props.existingTransaction.payment_date 
+      transaction_payment_date: props.existingTransaction.payment_date
         ? new Date(props.existingTransaction.payment_date).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0],
       transaction_notes: props.existingTransaction.notes || ''
     };
-    
+
     // Format amount untuk display
     formattedAmount.value = formatAmountForInput(amount);
   } else {

@@ -77,7 +77,7 @@ const isCompleted = computed(() => props.inspection?.status === 'completed');
 const isCcancelled = computed(() => props.inspection?.status === 'cancelled');
 const isPendingInspection = computed(() => props.inspection?.status === 'pending');
 const isStatus = computed(() => 
-  isRejected.value || isCcancelled.value || isPendingInspection.value
+  isRejected.value || isCcancelled.value 
 );
 
 // Cek apakah tombol PDF bisa ditampilkan
@@ -588,6 +588,7 @@ const getSeller = computed(() => {
       :existing-seller="getSeller"
       :existing-transaction="transaction"
       @close="showAllDataModal = false"
+      @reopen="showAllDataModal = true"
       @saved="handleSaved"
     />
 

@@ -50,11 +50,13 @@
           </label>
           <input
             v-model="form.customer_name"
+            @blur="validateName"
             type="text"
             required
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Nama lengkap customer"
           />
+          <p v-if="errors.customer_name" class="text-xs text-red-600 mt-1">{{ errors.customer_name }}</p>
         </div>
 
         <div>
@@ -67,12 +69,14 @@
             </div>
             <input
               v-model="form.customer_phone"
+              @blur="validatePhone"
               type="tel"
               required
               class="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               placeholder="8123456789"
             />
           </div>
+          <p v-if="errors.customer_phone" class="text-xs text-red-600 mt-1">{{ errors.customer_phone }}</p>
         </div>
 
         <div>
@@ -85,6 +89,18 @@
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="customer@email.com"
           />
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-1">
+            Alamat
+          </label>
+          <textarea
+            v-model="form.customer_address"
+            rows="3"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            placeholder="Alamat lengkap customer"
+          ></textarea>
         </div>
 
       </div>
@@ -115,7 +131,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import debounce from 'lodash/debounce';
 
-const emit = defineEmits(['update:form', 'customer-selected']);
+const emit = defineEmits(['update:form', 'customer-selected', 'update:errors']);
 
 const props = defineProps({
   formData: {
@@ -137,6 +153,10 @@ const customerSearch = ref('');
 const customers = ref([]);
 const showCustomerList = ref(false);
 const selectedCustomer = ref(null);
+const errors = ref({
+  customer_name: '',
+  customer_phone: ''
+});
 
 // Form
 const form = ref({
@@ -235,4 +255,26 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
 });
+
+// Validation functions
+const validateName = () => {
+  if (!form.value.customer_name.trim()) {
+    errors.value.customer_name = 'Nama customer wajib diisi';
+  } else if (form.value.customer_name.trim().length < 3) {
+    errors.value.customer_name = 'Nama customer minimal 3 karakter';
+  } else {
+    errors.value.customer_name = '';
+  }
+};
+
+const validatePhone = () => {
+  const phone = form.value.customer_phone.trim();
+  if (!phone) {
+    errors.value.customer_phone = 'Nomor WhatsApp wajib diisi';
+  } else if (!/^\d{9,14}$/.test(phone)) {
+    errors.value.customer_phone = 'Nomor WhatsApp harus 9-14 digit angka';
+  } else {
+    errors.value.customer_phone = '';
+  }
+};
 </script>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inspection;
 
+use App\Events\InspectionApproved;
 use App\Helpers\HtmlToWhatsApp;
 use App\Http\Controllers\Controller;
 use App\Mail\InspectionReportMail;
@@ -1041,48 +1042,113 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
         }
     }
 
+    // public function approvePdf($id)
+    // {
+    //     try {
+    //         $id = Crypt::decrypt($id);
+        
+    //          $inspection = Inspection::with([
+    //             'car',
+    //             'car.brand',
+    //             'car.model',
+    //             'car.type',
+    //             'category',
+    //             'repairEstimations' => function($q) {
+    //                 $q->orderBy('urgency', 'desc')
+    //                 ->orderBy('estimated_cost', 'desc');
+    //             },
+    //             'repairEstimations.creator'
+    //         ])->findOrFail($id);
+            
+    //          $generator = new InspectionmPdfGenerator();
+    //             if (empty($inspection->file) || !file_exists(public_path($inspection->file))) {
+    //                 $generator->generate($inspection);  
+    //             }
+            
+    //         // Update inspection status dan file path
+    //         $inspection->update([
+    //             'status' => 'approved',
+    //             'approved_at' => now(),
+    //         ]);
+    //         $inspection->addLog('approved', 'Menyetujui Hasil Inspeksi');
+            
+    //         $encryptId = Crypt::encrypt($inspection->id);
+    //             // Redirect ke halaman review
+    //         return redirect()->route('inspections.review', ['id' => $encryptId])
+    //         ->with('success', 'Inspeksi sudah di setujui dan report sedang di buat');
+                
+                
+    //     } catch (\Exception $e) {
+    //         Log::error('Error generating PDF: ' . $e->getMessage());
+    //         return redirect()->back()->with('error', 'Gagal generate laporan PDF: ' . $e->getMessage());
+    //     }
+    // }
+
     public function approvePdf($id)
     {
         try {
             $id = Crypt::decrypt($id);
-        
-             $inspection = Inspection::with([
-                'car',
+
+            DB::beginTransaction();
+
+            $inspection = Inspection::with([
                 'car.brand',
                 'car.model',
                 'car.type',
                 'category',
-                'repairEstimations' => function($q) {
-                    $q->orderBy('urgency', 'desc')
-                    ->orderBy('estimated_cost', 'desc');
-                },
-                'repairEstimations.creator'
-            ])->findOrFail($id);
-            
-             $generator = new InspectionmPdfGenerator();
-                if (empty($inspection->file) || !file_exists(public_path($inspection->file))) {
-                    $generator->generate($inspection);  
-                }
-            
-            // Update inspection status dan file path
+                'repairEstimations.creator',
+            ])->lockForUpdate()->findOrFail($id);
+
+            // =========================
+            // 1. CEK TRANSAKSI PAID
+            // =========================
+            $transaction = Transaction::where('inspection_id', $inspection->id)
+                ->where('status', 'paid')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$transaction) {
+                DB::rollBack();
+                return back()->with(
+                    'error',
+                    'Inspeksi belum dapat disetujui. Silakan selesaikan pembayaran terlebih dahulu.'
+                );
+            }
+
+            // =========================
+            // 2. GENERATE PDF (jika belum ada)
+            // =========================
+            $generator = new InspectionmPdfGenerator();
+            if (empty($inspection->file) || !file_exists(public_path($inspection->file))) {
+                $generator->generate($inspection);
+            }
+
+            // =========================
+            // 3. UPDATE STATUS APPROVED
+            // =========================
             $inspection->update([
-                'status' => 'approved',
+                'status'      => 'approved',
                 'approved_at' => now(),
             ]);
+
             $inspection->addLog('approved', 'Menyetujui Hasil Inspeksi');
-            
-            $encryptId = Crypt::encrypt($inspection->id);
-                // Redirect ke halaman review
-            return redirect()->route('inspections.review', ['id' => $encryptId])
-            ->with('success', 'Inspeksi sudah di setujui dan report sedang di buat');
-                
-                
-        } catch (\Exception $e) {
-            Log::error('Error generating PDF: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Gagal generate laporan PDF: ' . $e->getMessage());
+
+            // =========================
+            // 4. EVENT DISTRIBUSI
+            // =========================
+            event(new InspectionApproved($inspection));
+
+            DB::commit();
+
+            return redirect()
+                ->route('inspections.review', ['id' => Crypt::encrypt($inspection->id)])
+                ->with('success', 'Inspeksi berhasil disetujui.');
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage());
         }
     }
-
     public function sendEmail($id, Request $request)
     {
         $request->validate([
