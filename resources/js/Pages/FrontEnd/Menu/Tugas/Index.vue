@@ -472,7 +472,7 @@ const getWarningMessage = (task) => {
                     </div>
 
                     <!-- Info Inspector (untuk admin plant dan QC) -->
-                    <div v-if="(isAdminPlann || isQualityControl) && task.user" 
+                    <div v-if="(isAdminPlann || isQualityControl || isInspectorCoordinator || isAdmin) && task.user" 
                          class="px-4 py-3 bg-gray-50 border-b">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">

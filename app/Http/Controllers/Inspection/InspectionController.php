@@ -1136,7 +1136,14 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
             // =========================
             // 4. EVENT DISTRIBUSI
             // =========================
-            event(new InspectionApproved($inspection));
+
+            $hasDistribution = TransactionDistribution::where('transaction_id', $transaction->id)
+                ->lockForUpdate()
+                ->exists();
+
+            if (! $hasDistribution) {
+                event(new InspectionApproved($inspection));
+            }
 
             DB::commit();
 

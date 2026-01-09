@@ -34,17 +34,17 @@ class JobController extends Controller
                 $q->whereIn('status', ['pending_review']);
             });
         }
-        elseif ($user->hasRole('admin_plann')) {
+        elseif ($user->hasRole('admin_plann') || $user->hasRole('coordinator') || $user->hasRole('Admin') ) {
             // Admin plant melihat semua data dengan status tertentu
             $query->whereIn('status', ['draft', 'in_progress', 'pending', 'revision','pending_review']);
         } 
-        else {
-            // Default untuk role lain
-            $query->whereIn('status', ['draft', 'in_progress', 'pending_review', 'pending', 'revision']);
-        }
+        // else {
+        //     // Default untuk role lain
+        //     $query->whereIn('status', ['draft', 'in_progress', 'pending_review', 'pending', 'revision']);
+        // }
         
         // Filter pencarian untuk admin plant dan QC
-        if (($user->hasRole('admin_plann') || $user->hasRole('quality_control')) && $request->has('search')) {
+        if (($user->hasRole('admin_plann') || $user->hasRole('quality_control') || $user->hasRole('coordinator') || $user->hasRole('Admin')) && $request->has('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('plate_number', 'like', "%{$search}%")
@@ -106,8 +106,13 @@ class JobController extends Controller
             // Inspector hanya melihat riwayatnya sendiri
             $query->where('user_id', $user->id);
         } 
+        // Role-based filtering untuk history
+        elseif ($user->hasRole('admin_plann')) {
+            // Inspector hanya melihat riwayatnya sendiri
+            $query->where('submitted_by', $user->id);
+        } 
         // QC dan Admin Plant melihat semua riwayat
-        elseif ($user->hasRole('quality_control') || $user->hasRole('admin_plann')) {
+        elseif ($user->hasRole('quality_control')) {
             // Tidak ada filter user_id, tampilkan semua
         } 
         else {
