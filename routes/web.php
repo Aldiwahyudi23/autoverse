@@ -275,6 +275,9 @@ Route::middleware([
             Route::post('/coordinator/inspections/{inspection}/update-status', [CoordinatorController::class, 'updateStatus'])
                 ->name('coordinator.inspections.update-status');
         });
+
+        Route::get('/coordinator/inspections/export', [CoordinatorController::class, 'export'])
+            ->name('coordinator.inspections.export');
     });
 
         // ========================= CAR ROUTES =========================
