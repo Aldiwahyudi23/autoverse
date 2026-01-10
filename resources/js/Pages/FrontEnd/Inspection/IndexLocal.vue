@@ -498,8 +498,8 @@
                 v-model="cameraQualitySetting"
                 class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
+                <option value="HP_Native">HP</option>
                 <option value="HD_Std">HD Std</option>
-                <option value="Native">Native</option>
                 <option value="4K">4K Rtc</option>
                 <option value="HD">HD Rtc</option>
                 <option value="SD">SD Rtc</option>

@@ -143,9 +143,9 @@
     />
 
     <NativeCameraInput
-      v-if="cameraQualitySetting === 'Native'"
+      v-if="cameraQualitySetting === 'HP_Native'"
       ref="nativeCamera"
-      @photoCaptured="handlePhotoCaptured"
+      @directPhotoCaptured="handleDirectPhotoCaptured"
     />
 
 
@@ -470,7 +470,7 @@ const triggerGallery = () => {
 const openWebcam = () => {
   showSourceOptionsModal.value = false;
 
-  if (cameraQualitySetting.value === 'Native') {
+  if (cameraQualitySetting.value === 'HP_Native') {
     // Directly open native camera
     nativeCamera.value?.openCamera();
   } else {
@@ -669,7 +669,7 @@ const handlePhotoCaptured = async (newImageFile) => {
   if (!allowMultiple.value || currentTotalImages < props.settings.max_files) {
     try {
       const compressedFile = await compressAndSquareImage(newImageFile);
-      
+
       const img = new Image();
       img.onload = () => {
         const newImage = {
@@ -691,7 +691,7 @@ const handlePhotoCaptured = async (newImageFile) => {
         } else {
           previewImages.value.push(newImage);
         }
-        
+
         showWebcamModal.value = false;
         showSourceOptionsModal.value = false;
         currentPreviewIndex.value = allImages.value.length - 1;
@@ -705,6 +705,51 @@ const handlePhotoCaptured = async (newImageFile) => {
   } else {
     alert(`Maximum ${props.settings.max_files} files allowed.`);
     showWebcamModal.value = false;
+    showSourceOptionsModal.value = false;
+    if (allImages.value.length > 0) showPreviewModal.value = true;
+  }
+};
+
+const handleDirectPhotoCaptured = async (newImageFile) => {
+  const currentTotalImages = allImages.value.length;
+  if (!allowMultiple.value || currentTotalImages < props.settings.max_files) {
+    try {
+      const compressedFile = await compressAndSquareImage(newImageFile);
+
+      const img = new Image();
+      img.onload = () => {
+        const newImage = {
+          file: compressedFile,
+          preview: URL.createObjectURL(compressedFile),
+          rotation: 0,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          isNew: true
+        };
+
+        if (!allowMultiple.value) {
+          previewImages.value.forEach(img => {
+            if (img.preview && img.preview.startsWith('blob:')) {
+              URL.revokeObjectURL(img.preview);
+            }
+          });
+          previewImages.value = [newImage];
+        } else {
+          previewImages.value.push(newImage);
+        }
+
+        // Close native camera modal and open preview
+        showSourceOptionsModal.value = false;
+        currentPreviewIndex.value = allImages.value.length - 1;
+        showPreviewModal.value = true;
+      };
+      img.src = URL.createObjectURL(compressedFile);
+    } catch (error) {
+      console.error("Error processing direct captured image:", error);
+      alert("Failed to process captured image. Please try again.");
+    }
+  } else {
+    alert(`Maximum ${props.settings.max_files} files allowed.`);
     showSourceOptionsModal.value = false;
     if (allImages.value.length > 0) showPreviewModal.value = true;
   }

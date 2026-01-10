@@ -33,7 +33,7 @@ const onCapture = async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
 
-  emit('photoCaptured', file)
+  emit('directPhotoCaptured', file)
 
   // Reset input agar bisa capture ulang
   e.target.value = ''
