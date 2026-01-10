@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\InspectionApproved;
 use App\Models\Customer;
 use App\Models\Seller;
 use App\Models\DataInspection\Inspection;
 use App\Models\Finance\Transaction;
+use App\Models\Finance\TransactionDistribution;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
@@ -98,6 +100,21 @@ class InspectionDataController extends Controller
                 ]
             );
 
+        $inspection->addLog(
+            'Transaction',
+            'Penginputan data customer, seller, dan transaksi - Status: ' . ($validated['transaction_status'] ?? '-')
+        );
+
+
+        // ============================================
+        // 5. ALTERNATIF: Inspection sudah approved, 
+        //    tapi transaksi baru dibayar dan belum ada distribusi
+        // ============================================
+
+        $isStatusChangedToPaid = $transaction->status === 'paid';
+        if ($isStatusChangedToPaid && $inspection->status === 'approved') {
+            event(new InspectionApproved($inspection));
+        }
             DB::commit();
 
             return redirect()->back()->with('success', 'Data berhasil disimpan');

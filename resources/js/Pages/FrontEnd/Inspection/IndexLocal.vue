@@ -505,7 +505,7 @@
                 v-model="cameraQualitySetting"
                 class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="HP_Native">HP</option>
+                <option value="HP_Native">Kamera HP</option>
                 <option value="HD_Std">HD Std</option>
                 <option value="4K">4K Rtc</option>
                 <option value="HD">HD Rtc</option>
@@ -725,10 +725,10 @@ const CAMERA_QUALITY_KEY = computed(() => `camera_quality_${props.inspection.id}
 const getCameraQualitySetting = () => {
   try {
     const setting = localStorage.getItem(CAMERA_QUALITY_KEY.value);
-    return setting || 'HD_Std';
+    return setting || 'HP_Native';
   } catch (error) {
     console.error("Error reading camera quality setting:", error);
-    return 'HD_Std';
+    return 'HP_Native';
   }
 };
 

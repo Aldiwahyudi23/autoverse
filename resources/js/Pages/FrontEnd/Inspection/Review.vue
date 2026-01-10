@@ -282,7 +282,7 @@ const getSeller = computed(() => {
               <img
                 :src="getImageUrl(coverImage.image_path)"
                 alt="Cover Image"
-                class="h-12 w-12 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                class="h-20 w-20 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                 @click="showImageModal = true"
               />
             </div>

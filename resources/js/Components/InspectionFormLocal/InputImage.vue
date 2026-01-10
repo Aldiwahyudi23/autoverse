@@ -226,7 +226,7 @@ const totalToUpload = ref(0);
 const imageSourceSetting = inject('imageSourceSetting', ref('all'));
 
 // Inject camera quality setting dari parent
-const cameraQualitySetting = inject('cameraQualitySetting', ref('HD_Std'));
+const cameraQualitySetting = inject('cameraQualitySetting', ref('HP_Native'));
 
 // KEY untuk local storage backup
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;
@@ -717,7 +717,7 @@ const handleDirectPhotoCaptured = async (newImageFile) => {
       const compressedFile = await compressAndSquareImage(newImageFile);
 
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const newImage = {
           file: compressedFile,
           preview: URL.createObjectURL(compressedFile),
@@ -727,21 +727,11 @@ const handleDirectPhotoCaptured = async (newImageFile) => {
           isNew: true
         };
 
-        if (!allowMultiple.value) {
-          previewImages.value.forEach(img => {
-            if (img.preview && img.preview.startsWith('blob:')) {
-              URL.revokeObjectURL(img.preview);
-            }
-          });
-          previewImages.value = [newImage];
-        } else {
-          previewImages.value.push(newImage);
-        }
-
-        // Close native camera modal and open preview
+        // Close native camera modal
         showSourceOptionsModal.value = false;
-        currentPreviewIndex.value = allImages.value.length - 1;
-        showPreviewModal.value = true;
+
+        // Directly upload the image without preview modal
+        await directUploadImage(newImage);
       };
       img.src = URL.createObjectURL(compressedFile);
     } catch (error) {
@@ -1201,6 +1191,79 @@ const removeImage = async (imageObject) => {
   if (showPreviewModal.value && allImages.value.length === 0) closePreviewModal();
   else if (showPreviewModal.value && currentPreviewIndex.value >= allImages.value.length) {
     currentPreviewIndex.value = Math.max(0, allImages.value.length - 1);
+  }
+};
+
+// TAMBAH: Fungsi untuk upload langsung tanpa preview modal (untuk HP_Native)
+const directUploadImage = async (imageObject) => {
+  isUploading.value = true;
+
+  if (!props.pointId) {
+    alert('Error: Point ID is missing. Cannot upload image.');
+    isUploading.value = false;
+    return;
+  }
+
+  try {
+    // Apply rotation if needed
+    const { file: processedFile, width: newWidth, height: newHeight } = await applyRotationToImage(imageObject);
+
+    if (!processedFile) {
+      throw new Error('Failed to process image');
+    }
+
+    // Upload to server
+    const formData = new FormData();
+    formData.append('inspection_id', props.inspectionId);
+    formData.append('point_id', props.pointId);
+    formData.append('images[]', processedFile);
+
+    const response = await axios.post(route('inspections.upload-image'), formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        }
+      }
+    });
+
+    // Process response
+    const serverImages = response.data.images;
+    if (serverImages && serverImages.length > 0) {
+      const imgData = serverImages[0];
+      const uploadedImage = {
+        id: imgData.image_id,
+        image_path: imgData.path,
+        width: imgData.width || newWidth || 0,
+        height: imgData.height || newHeight || 0,
+        rotation: imageObject.rotation || 0,
+        preview: imgData.public_url,
+        isUploaded: true
+      };
+
+      // Update model value
+      const updatedImages = [...props.modelValue, uploadedImage];
+      emit('update:modelValue', updatedImages);
+      emit('save', props.pointId);
+      emit('uploaded', {
+        pointId: props.pointId,
+        images: updatedImages,
+        newImagesCount: 1
+      });
+
+      console.log("✅ Successfully uploaded image directly");
+    } else {
+      throw new Error('No image data received from server');
+    }
+
+  } catch (error) {
+    console.error("Error uploading image directly:", error);
+    alert("Failed to upload image. Please try again.");
+  } finally {
+    isUploading.value = false;
+    uploadProgress.value = 0;
   }
 };
 

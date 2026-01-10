@@ -96,6 +96,11 @@ class DistributeTransactionFee
                 'released_at'      => now(),
                 'released_by'      => Auth::id(),
             ]);
+
+            $inspection->addLog(
+                'Distribusi',
+                'Pembagian fee transaksi inspeksi telah dibuat ulang dan disimpan.'
+            );
         });
     }
 }
