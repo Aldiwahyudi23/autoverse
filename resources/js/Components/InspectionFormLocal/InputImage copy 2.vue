@@ -8,7 +8,6 @@
       @change="handleImageSelect"
       :multiple="allowMultiple"
       :disabled="isUploading"
-      capture="environment" 
     />
 
     <canvas ref="processingCanvas" class="hidden"></canvas>
@@ -113,15 +112,21 @@
 
     <p v-if="error" class="mt-1 text-xs text-red-600">{{ error }}</p>
 
-    <!-- Hapus WebCamRTC dan WebcamModal dari template -->
-    <!-- Hanya gunakan ImageSourceOptionsModal dan PreviewModal -->
-
     <ImageSourceOptionsModal
       :show="showSourceOptionsModal"
       :settings="settings"
       @close="closeSourceOptions" 
       @open-webcam="openWebcam"
       @trigger-gallery="triggerGallery"
+    />
+
+    <WebCamRTC
+      :show="showWebcamModal"
+      :aspect-ratio="aspectRatio"
+      :settings="settings"
+      :point="point"      
+      @close="closeWebcam"
+      @photo-captured="handlePhotoCaptured"
     />
 
     <PreviewModal
@@ -142,41 +147,15 @@
       @trigger-add-more-photos="openSourceOptions"
       @retry-image="retryUpload"
     />
-
-    <!-- Modal untuk kontrol flash (opsional, bisa juga langsung di kamera) -->
-    <div v-if="showFlashControls" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div class="bg-white rounded-lg p-6 max-w-sm mx-4">
-        <h3 class="text-lg font-semibold mb-4">Kontrol Kamera</h3>
-        <div class="flex flex-col gap-3">
-          <button 
-            @click="toggleFlash" 
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Flash: {{ flashState ? 'ON' : 'OFF' }}
-          </button>
-          <button 
-            @click="openNativeCamera" 
-            class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Buka Kamera
-          </button>
-          <button 
-            @click="showFlashControls = false" 
-            class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-          >
-            Batal
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, inject, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, inject } from 'vue';
 import ImageSourceOptionsModal from './Modal-uploader/ImageSourceOptionsModal.vue';
 import PreviewModal from './Modal-uploader/PreviewModal.vue';
 import axios from 'axios';
+import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
 
 // Debug flag
 const DEBUG = true;
@@ -207,6 +186,7 @@ const emit = defineEmits(['update:modelValue', 'save', 'removeImage', 'uploaded'
 const galleryInput = ref(null);
 const processingCanvas = ref(null);
 const showSourceOptionsModal = ref(false);
+const showWebcamModal = ref(false);
 const showPreviewModal = ref(false);
 const previewImages = ref([]);
 const currentPreviewIndex = ref(0);
@@ -218,16 +198,8 @@ const uploadProgress = ref(0);
 const currentUploading = ref(0);
 const totalToUpload = ref(0);
 
-// Flash control state
-const showFlashControls = ref(false);
-const flashState = ref(false);
-const mediaStream = ref(null);
-
 // Inject image source setting dari parent
 const imageSourceSetting = inject('imageSourceSetting', ref('all'));
-
-// Inject camera quality setting dari parent
-const cameraQualitySetting = inject('cameraQualitySetting', ref('HD_Std'));
 
 // KEY untuk local storage backup
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;
@@ -450,238 +422,7 @@ const getFallbackUrl = (image) => {
   return '';
 };
 
-// ============ MODIFIKASI: Fungsi untuk kamera langsung ============
-const openWebcam = async () => {
-  showSourceOptionsModal.value = false;
-  
-  // Jika pengaturan flash diaktifkan, tampilkan kontrol flash
-  if (props.settings.enable_flash) {
-    showFlashControls.value = true;
-  } else {
-    // Langsung buka kamera tanpa kontrol flash
-    openNativeCamera();
-  }
-};
-
-const openNativeCamera = () => {
-  showFlashControls.value = false;
-  
-  // Method 1: Menggunakan input file dengan capture="environment"
-  // Ini akan langsung membuka kamera belakang di HP
-  const cameraInput = document.createElement('input');
-  cameraInput.type = 'file';
-  cameraInput.accept = 'image/*';
-  cameraInput.capture = 'environment'; // environment = kamera belakang
-  
-  // Tambahkan atribut untuk flash (jika didukung)
-  if (props.settings.enable_flash && flashState.value) {
-    // Beberapa browser mendukung atribut "flash"
-    cameraInput.setAttribute('flash', 'on');
-  }
-  
-  cameraInput.onchange = async (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      await handlePhotoCaptured(file);
-    }
-  };
-  
-  cameraInput.click();
-  
-  // Method 2: Alternatif menggunakan getUserMedia untuk kontrol lebih baik
-  tryAlternativeCameraMethod();
-};
-
-const tryAlternativeCameraMethod = async () => {
-  // Coba menggunakan getUserMedia untuk kontrol kamera yang lebih baik
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      const constraints = {
-        video: {
-          facingMode: 'environment', // Kamera belakang
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          ...(props.settings.enable_flash && flashState.value && { torch: true })
-        },
-        audio: false
-      };
-      
-      mediaStream.value = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Tampilkan kamera di modal custom
-      showCustomCameraModal();
-      
-    } catch (error) {
-      console.warn('Tidak bisa menggunakan getUserMedia, menggunakan input file biasa:', error);
-      // Fallback ke input file biasa
-      galleryInput.value.capture = 'environment';
-      galleryInput.value.click();
-    }
-  }
-};
-
-const showCustomCameraModal = () => {
-  // Buat modal untuk menampilkan preview kamera
-  const modal = document.createElement('div');
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: black;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-  `;
-  
-  // Video element untuk preview kamera
-  const video = document.createElement('video');
-  video.style.cssText = `
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  `;
-  video.srcObject = mediaStream.value;
-  video.autoplay = true;
-  video.playsInline = true;
-  
-  // Container untuk kontrol
-  const controls = document.createElement('div');
-  controls.style.cssText = `
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    padding: 20px;
-    background: rgba(0,0,0,0.5);
-  `;
-  
-  // Tombol flash
-  if (props.settings.enable_flash) {
-    const flashBtn = document.createElement('button');
-    flashBtn.textContent = flashState.value ? 'Flash: ON' : 'Flash: OFF';
-    flashBtn.style.cssText = `
-      padding: 10px 20px;
-      background: ${flashState.value ? '#f59e0b' : '#6b7280'};
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-weight: bold;
-    `;
-    flashBtn.onclick = toggleFlash;
-    controls.appendChild(flashBtn);
-  }
-  
-  // Tombol ambil foto
-  const captureBtn = document.createElement('button');
-  captureBtn.textContent = 'Ambil Foto';
-  captureBtn.style.cssText = `
-    padding: 10px 30px;
-    background: #10b981;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-weight: bold;
-  `;
-  captureBtn.onclick = captureFromVideo;
-  controls.appendChild(captureBtn);
-  
-  // Tombol tutup
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = '✕';
-  closeBtn.style.cssText = `
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 40px;
-    height: 40px;
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  `;
-  closeBtn.onclick = () => {
-    if (mediaStream.value) {
-      mediaStream.value.getTracks().forEach(track => track.stop());
-      mediaStream.value = null;
-    }
-    document.body.removeChild(modal);
-  };
-  
-  modal.appendChild(video);
-  modal.appendChild(controls);
-  modal.appendChild(closeBtn);
-  document.body.appendChild(modal);
-};
-
-const captureFromVideo = () => {
-  const video = document.querySelector('video[srcObject]');
-  if (!video || !mediaStream.value) return;
-  
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Set canvas size sama dengan video
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  
-  // Gambar frame video ke canvas
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-  // Konversi ke blob
-  canvas.toBlob(async (blob) => {
-    if (blob) {
-      const file = new File([blob], `photo_${Date.now()}.jpg`, { 
-        type: 'image/jpeg',
-        lastModified: Date.now()
-      });
-      
-      // Stop stream
-      mediaStream.value.getTracks().forEach(track => track.stop());
-      mediaStream.value = null;
-      
-      // Hapus modal
-      const modal = document.querySelector('div[style*="position: fixed; top: 0"]');
-      if (modal) document.body.removeChild(modal);
-      
-      // Proses foto
-      await handlePhotoCaptured(file);
-    }
-  }, 'image/jpeg', 0.9);
-};
-
-const toggleFlash = () => {
-  flashState.value = !flashState.value;
-  
-  // Update teks tombol flash di modal jika ada
-  const flashBtn = document.querySelector('button[onclick*=toggleFlash]');
-  if (flashBtn) {
-    flashBtn.textContent = flashState.value ? 'Flash: ON' : 'Flash: OFF';
-    flashBtn.style.background = flashState.value ? '#f59e0b' : '#6b7280';
-  }
-  
-  // Update torch constraint jika stream aktif
-  if (mediaStream.value && mediaStream.value.getVideoTracks().length > 0) {
-    const track = mediaStream.value.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    
-    if (capabilities.torch) {
-      track.applyConstraints({
-        advanced: [{ torch: flashState.value }]
-      }).catch(err => console.error('Error setting torch:', err));
-    }
-  }
-};
-
-// ============ Existing Functions ============
+// ============ Existing Functions (minimal changes) ============
 const openSourceOptions = () => {
   if (showPreviewModal.value) showPreviewModal.value = false;
   
@@ -699,8 +440,18 @@ const triggerGallery = () => {
   galleryInput.value.click();
 };
 
+const openWebcam = () => {
+  showSourceOptionsModal.value = false;
+  showWebcamModal.value = true;
+};
+
 const closeSourceOptions = () => {
   showSourceOptionsModal.value = false;
+  if (allImages.value.length > 0) showPreviewModal.value = true;
+};
+
+const closeWebcam = () => {
+  showWebcamModal.value = false;
   if (allImages.value.length > 0) showPreviewModal.value = true;
 };
 
@@ -717,6 +468,27 @@ const closePreviewModal = () => {
   }
 };
 
+// ============ Debug watchers ============
+watch(() => props.modelValue, (newVal) => {
+  if (DEBUG) {
+    console.log('🔄 modelValue updated:', newVal);
+    if (newVal && newVal.length > 0) {
+      console.log('📊 First image structure:', JSON.stringify(newVal[0], null, 2));
+      console.log('🔍 Type of preview:', typeof newVal[0]?.preview);
+    }
+  }
+}, { deep: true });
+
+// ============ Rest of existing functions (keep as is) ============
+// [Keep all existing functions below exactly as they were]
+// loadImageWithDimensions, validateFileType, compressAndSquareImage,
+// handleImageSelect, handlePhotoCaptured, openPreviewModal,
+// applyRotationToImage, saveBackupToLocalStorage, clearBackupFromLocalStorage,
+// triggerUploadAndSave, uploadImagesToServer, retryUpload,
+// handleRemovePreviewImage, removeImage, onMounted
+
+// ... [PASTE ALL YOUR EXISTING FUNCTIONS HERE EXACTLY AS THEY WERE]
+// START COPY FROM HERE (your existing functions):
 const loadImageWithDimensions = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -886,7 +658,7 @@ const handlePhotoCaptured = async (newImageFile) => {
           previewImages.value.push(newImage);
         }
         
-        showFlashControls.value = false;
+        showWebcamModal.value = false;
         showSourceOptionsModal.value = false;
         currentPreviewIndex.value = allImages.value.length - 1;
         showPreviewModal.value = true;
@@ -898,7 +670,7 @@ const handlePhotoCaptured = async (newImageFile) => {
     }
   } else {
     alert(`Maximum ${props.settings.max_files} files allowed.`);
-    showFlashControls.value = false;
+    showWebcamModal.value = false;
     showSourceOptionsModal.value = false;
     if (allImages.value.length > 0) showPreviewModal.value = true;
   }
@@ -974,6 +746,7 @@ const applyRotationToImage = (imageObject) => {
   });
 };
 
+// TAMBAH: Simpan backup ke localStorage
 const saveBackupToLocalStorage = (images) => {
   try {
     const backupData = {
@@ -993,10 +766,12 @@ const saveBackupToLocalStorage = (images) => {
   }
 };
 
+// TAMBAH: Hapus backup
 const clearBackupFromLocalStorage = () => {
   localStorage.removeItem(STORAGE_KEY);
 };
 
+// MODIFIKASI BESAR: triggerUploadAndSave - langsung upload setelah simpan
 const triggerUploadAndSave = async (imagesToSaveFromPreview) => {
   isUploading.value = true;
   const finalUploadedImages = [];
@@ -1076,6 +851,7 @@ const triggerUploadAndSave = async (imagesToSaveFromPreview) => {
   }
 };
 
+// TAMBAH: Fungsi khusus untuk upload ke server dengan progress tracking per image
 const uploadImagesToServer = async (imagesToUpload, existingImages) => {
   totalToUpload.value = imagesToUpload.length;
   currentUploading.value = 0;
@@ -1192,6 +968,7 @@ const uploadImagesToServer = async (imagesToUpload, existingImages) => {
   }
 };
 
+// TAMBAH: Fungsi retry upload untuk gambar yang gagal
 const retryUpload = async (failedImage) => {
   if (!failedImage || !failedImage.file) {
     console.error("No file to retry upload");
@@ -1348,17 +1125,6 @@ const removeImage = async (imageObject) => {
   }
 };
 
-// Debug watchers
-watch(() => props.modelValue, (newVal) => {
-  if (DEBUG) {
-    console.log('🔄 modelValue updated:', newVal);
-    if (newVal && newVal.length > 0) {
-      console.log('📊 First image structure:', JSON.stringify(newVal[0], null, 2));
-      console.log('🔍 Type of preview:', typeof newVal[0]?.preview);
-    }
-  }
-}, { deep: true });
-
 // Load backup saat component mounted
 onMounted(() => {
   try {
@@ -1369,20 +1135,6 @@ onMounted(() => {
   } catch (error) {
     console.error('Error loading backup:', error);
   }
-});
-
-// Cleanup saat component di-unmount
-onUnmounted(() => {
-  if (mediaStream.value) {
-    mediaStream.value.getTracks().forEach(track => track.stop());
-  }
-  
-  // Cleanup preview images
-  previewImages.value.forEach(img => {
-    if (img.preview && img.preview.startsWith('blob:')) {
-      URL.revokeObjectURL(img.preview);
-    }
-  });
 });
 </script>
 
@@ -1399,7 +1151,9 @@ onUnmounted(() => {
 .image-source-options-modal {
   z-index: 60;
 }
-
+.webcam-modal {
+  z-index: 70;
+}
 .image-preview-modal {
   z-index: 50;
 }
