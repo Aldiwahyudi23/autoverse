@@ -142,6 +142,13 @@
       @photo-captured="handlePhotoCaptured"
     />
 
+    <NativeCameraInput
+      v-if="cameraQualitySetting === 'Native'"
+      ref="nativeCamera"
+      @photoCaptured="handlePhotoCaptured"
+    />
+
+
     <PreviewModal
       :show="showPreviewModal"
       :images="allImages"
@@ -170,6 +177,7 @@ import PreviewModal from './Modal-uploader/PreviewModal.vue';
 import axios from 'axios';
 import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
 import WebcamModal from './Modal-uploader/WebcamModal.vue';
+import NativeCameraInput from './Modal-uploader/NativeCameraInput.vue';
 
 // Debug flag
 const DEBUG = true;
@@ -195,6 +203,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue', 'save', 'removeImage', 'uploaded', 'uploadProgress']);
+
+const nativeCamera = ref(null)
 
 // Refs for DOM elements and state management
 const galleryInput = ref(null);
@@ -459,7 +469,14 @@ const triggerGallery = () => {
 
 const openWebcam = () => {
   showSourceOptionsModal.value = false;
-  showWebcamModal.value = true;
+
+  if (cameraQualitySetting.value === 'Native') {
+    // Directly open native camera
+    nativeCamera.value?.openCamera();
+  } else {
+    // Show webcam modal for other quality settings
+    showWebcamModal.value = true;
+  }
 };
 
 const closeSourceOptions = () => {
@@ -1104,7 +1121,7 @@ const handleRemovePreviewImage = (imageToRemove) => {
     closePreviewModal();
   }
 };
-
+//key
 const removeImage = async (imageObject) => {
   if (imageObject.id || imageObject.image_path) {
     try {

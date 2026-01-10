@@ -5,7 +5,7 @@
        <p class="text-xs text-gray-500 mt-2 text-center">Ambil Foto Maksimal: <b>{{ settings.max_files }}</b> Dengan Rasio & Ukuran: <b>{{ settings.camera_aspect_ratio }}</b> </p>
       <div class="flex flex-row space-x-4 mb-6">
         <button
-          @click="$emit('trigger-camera')"
+          @click="$emit('open-webcam')"
           class="flex-1 flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg text-gray-700
                  hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700
                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
