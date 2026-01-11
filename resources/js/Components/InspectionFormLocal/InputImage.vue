@@ -724,14 +724,28 @@ const handleDirectPhotoCaptured = async (newImageFile) => {
           rotation: 0,
           width: img.naturalWidth,
           height: img.naturalHeight,
-          isNew: true
+          isNew: true,
+          isUploading: true,
+          isFailed: false
         };
+
+        // Add to preview images to show loading animation
+        if (!allowMultiple.value) {
+          previewImages.value.forEach(img => {
+            if (img.preview && img.preview.startsWith('blob:')) {
+              URL.revokeObjectURL(img.preview);
+            }
+          });
+          previewImages.value = [newImage];
+        } else {
+          previewImages.value.push(newImage);
+        }
 
         // Close native camera modal
         showSourceOptionsModal.value = false;
 
-        // Directly upload the image without preview modal
-        await directUploadImage(newImage);
+        // Directly upload the image with loading animation
+        await directUploadImageWithLoading(newImage);
       };
       img.src = URL.createObjectURL(compressedFile);
     } catch (error) {
@@ -1260,6 +1274,96 @@ const directUploadImage = async (imageObject) => {
 
   } catch (error) {
     console.error("Error uploading image directly:", error);
+    alert("Failed to upload image. Please try again.");
+  } finally {
+    isUploading.value = false;
+    uploadProgress.value = 0;
+  }
+};
+
+// TAMBAH: Fungsi untuk upload langsung dengan loading animation (untuk HP_Native)
+const directUploadImageWithLoading = async (imageObject) => {
+  isUploading.value = true;
+
+  if (!props.pointId) {
+    alert('Error: Point ID is missing. Cannot upload image.');
+    isUploading.value = false;
+    return;
+  }
+
+  try {
+    // Apply rotation if needed
+    const { file: processedFile, width: newWidth, height: newHeight } = await applyRotationToImage(imageObject);
+
+    if (!processedFile) {
+      throw new Error('Failed to process image');
+    }
+
+    // Upload to server
+    const formData = new FormData();
+    formData.append('inspection_id', props.inspectionId);
+    formData.append('point_id', props.pointId);
+    formData.append('images[]', processedFile);
+
+    const response = await axios.post(route('inspections.upload-image'), formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        }
+      }
+    });
+
+    // Process response
+    const serverImages = response.data.images;
+    if (serverImages && serverImages.length > 0) {
+      const imgData = serverImages[0];
+      const uploadedImage = {
+        id: imgData.image_id,
+        image_path: imgData.path,
+        width: imgData.width || newWidth || 0,
+        height: imgData.height || newHeight || 0,
+        rotation: imageObject.rotation || 0,
+        preview: imgData.public_url,
+        isUploaded: true
+      };
+
+      // Update model value
+      const updatedImages = [...props.modelValue, uploadedImage];
+      emit('update:modelValue', updatedImages);
+      emit('save', props.pointId);
+      emit('uploaded', {
+        pointId: props.pointId,
+        images: updatedImages,
+        newImagesCount: 1
+      });
+
+      // Remove from preview images after successful upload
+      const previewIndex = previewImages.value.findIndex(p => p.preview === imageObject.preview);
+      if (previewIndex !== -1) {
+        const removed = previewImages.value.splice(previewIndex, 1)[0];
+        if (removed.preview && removed.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(removed.preview);
+        }
+      }
+
+      console.log("✅ Successfully uploaded image directly with loading");
+    } else {
+      throw new Error('No image data received from server');
+    }
+
+  } catch (error) {
+    console.error("Error uploading image directly:", error);
+
+    // Mark as failed
+    const previewIndex = previewImages.value.findIndex(p => p.preview === imageObject.preview);
+    if (previewIndex !== -1) {
+      previewImages.value[previewIndex].isUploading = false;
+      previewImages.value[previewIndex].isFailed = true;
+    }
+
     alert("Failed to upload image. Please try again.");
   } finally {
     isUploading.value = false;
