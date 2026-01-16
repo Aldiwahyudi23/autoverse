@@ -206,47 +206,52 @@
       </transition>
 
       <!-- Konten Utama -->
-      <div class="relative overflow-hidden">
-        <transition name="category-slide" mode="out-in">
-          <!-- Detail Kendaraan -->
-          <div v-if="activeCategory === 'vehicle'" key="vehicle">
-            <VehicleDetails
-              :inspection="inspection"
-              :CarDetail="CarDetail"
-              :allInspections="props.allInspections" 
-              @update-vehicle="updateVehicleDetails"
-              @save-car-details="saveNewCarDetails"
-              @update:validation="handleVehicleValidation"
-              @update:hasUnsavedChanges="handleUnsavedChanges"
-            />
-          </div>
+<!-- MENJADI INI: -->
+<div class="relative overflow-hidden">
+  <!-- Vehicle Details - Hidden tapi tetap di DOM -->
+  <div v-show="activeCategory === 'vehicle'" class="category-content">
+    <VehicleDetails
+      :inspection="inspection"
+      :CarDetail="CarDetail"
+      :allInspections="props.allInspections" 
+      @update-vehicle="updateVehicleDetails"
+      @save-car-details="saveNewCarDetails"
+      @update:validation="handleVehicleValidation"
+      @update:hasUnsavedChanges="handleUnsavedChanges"
+    />
+  </div>
 
-          <!-- Menu Inspeksi Biasa -->
-          <div v-else-if="activeMenuData && activeCategory !== 'conclusion'" :key="activeMenuData.id">
-            <CategorySection
-              :category="activeMenuData"
-              :inspection-id="inspection.id"
-              :car="props.car"
-              :form="form"
-              :head = "menuMode"
-              @updateResult="updateResult" 
-              @hapusPoint="hapusData"
-              @removeImage="removeImage"
-            />
-          </div>
+  <!-- Menu Inspeksi Biasa -->
+  <div 
+    v-show="activeMenuData && activeCategory !== 'conclusion'" 
+    class="category-content"
+  >
+    <CategorySection
+      v-if="activeMenuData"
+      :category="activeMenuData"
+      :inspection-id="inspection.id"
+      :car="props.car"
+      :form="form"
+      :head="menuMode"
+      :triggeredPoints="triggeredPoints"
+      @updateResult="updateResult"
+      @hapusPoint="hapusData"
+      @removeImage="removeImage"
+      @triggerPointsChanged="handleTriggerPointsChanged"
+    />
+  </div>
 
-          <!-- Kesimpulan -->
-          <div v-else-if="activeCategory === 'conclusion'" key="conclusion">
-            <ConclusionSection
-              :form="{ conclusion: conclusionState }"
-              :inspection-id="inspection.id"
-              :inspection="inspection"
-              :settings="inspection.settings || {}"
-              @updateConclusion="updateConclusion"
-            />
-          </div>
-        </transition>
-      </div>
+  <!-- Kesimpulan -->
+  <div v-show="activeCategory === 'conclusion'" class="category-content">
+    <ConclusionSection
+      :form="{ conclusion: conclusionState }"
+      :inspection-id="inspection.id"
+      :inspection="inspection"
+      :settings="inspection.settings || {}"
+      @updateConclusion="updateConclusion"
+    />
+  </div>
+</div>
 
       <!-- Tombol Simpan Final -->
       <div
@@ -596,7 +601,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, provide, nextTick, inject  } from 'vue';
 import { useForm, usePage, Link, router } from '@inertiajs/vue3';
-import { debounce } from 'lodash';
+import { throttle , debounce } from 'lodash';
 import VehicleDetails from '@/Components/InspectionFormLocal/VehicleDetails.vue';
 import CategorySection from '@/Components/InspectionFormLocal/CategorySection.vue';
 import ConclusionSection from '@/Components/InspectionFormLocal/ConclusionSection.vue';
@@ -844,6 +849,84 @@ const handleAction = (route, actionType) => {
   });
 };
 
+// State untuk triggered points (disimpan di parent)
+const triggeredPoints = ref([]);
+
+// Fungsi untuk memproses trigger logic dari child component
+const handleTriggerPointsChanged = (event) => {
+  const { pointId, targetPointIds, action } = event;
+  
+  if (action === 'update') {
+    // Reset target points dari point ini sebelum memproses yang baru
+    targetPointIds.forEach(targetId => {
+      const normalizedTargetId = targetId.toString();
+      const index = triggeredPoints.value.indexOf(normalizedTargetId);
+      if (index > -1) {
+        triggeredPoints.value.splice(index, 1);
+      }
+    });
+    
+    // Tambahkan target points baru
+    targetPointIds.forEach(targetId => {
+      const normalizedTargetId = targetId.toString();
+      if (!triggeredPoints.value.includes(normalizedTargetId)) {
+        triggeredPoints.value.push(normalizedTargetId);
+      }
+    });
+  }
+};
+
+// Fungsi untuk inisialisasi triggered points dari data yang sudah ada
+const initializeTriggeredPointsFromData = (allMenus) => {
+  triggeredPoints.value = [];
+
+  allMenus.forEach(menu => {
+    const points = menu.menu_point || [];
+    points.forEach(point => {
+      const menuPointId = point.id?.toString();
+      if (!menuPointId) return;
+
+      // Jika point ini adalah point pemicu (parent), cek apakah ada pilihan yang aktif
+      if (point.input_type === 'radio' || point.input_type === 'imageTOradio' || point.input_type === 'select') {
+        const result = form.results[point.inspection_point_id];
+        if (result && result.status) {
+          const settings = point.settings || {};
+
+          // Cek apakah option yang dipilih memiliki show_trigger: true
+          let selectedOptions = [];
+
+          if (Array.isArray(result.status)) {
+            // Multi-select
+            result.status.forEach(val => {
+              const opt = settings.radios?.find(opt => opt.value === val);
+              if (opt) selectedOptions.push(opt);
+            });
+          } else {
+            // Single-select
+            const opt = settings.radios?.find(opt => opt.value === result.status);
+            if (opt) selectedOptions.push(opt);
+          }
+
+          selectedOptions.forEach(selectedOption => {
+            if (selectedOption?.settings?.show_trigger) {
+              const targetPointIds = selectedOption.settings.target_point_id || [];
+              targetPointIds.forEach(targetId => {
+                const normalizedTargetId = targetId.toString();
+                if (!triggeredPoints.value.includes(normalizedTargetId)) {
+                  triggeredPoints.value.push(normalizedTargetId);
+                }
+              }); // ← Penutupan untuk targetPointIds.forEach
+            } // ← Penutupan untuk if statement (tidak perlu tanda kurung)
+          }); // ← Penutupan untuk selectedOptions.forEach
+        } // ← Penutupan untuk if (result && result.status)
+      } // ← Penutupan untuk if (point.input_type === ...)
+    }); // ← Penutupan untuk points.forEach
+  }); // ← Penutupan untuk allMenus.forEach
+}; // ← Penutupan untuk fungsi
+
+
+
+
 const hasDamage = computed(() => {
   return props.appMenus.some(menu => menu.input_type === 'damage')
 })
@@ -856,8 +939,7 @@ const allCategories = computed(() => {
 const activeCategory = ref(allCategories.value[0]);
 const activeIndex = ref(0);
 
-
-
+// Ubah activeMenuData
 const activeMenuData = computed(() => {
   if (activeCategory.value === 'vehicle' || activeCategory.value === 'conclusion') {
     return null;
@@ -870,6 +952,19 @@ const activeMenuData = computed(() => {
     points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
   };
 });
+
+// const activeMenuData = computed(() => {
+//   if (activeCategory.value === 'vehicle' || activeCategory.value === 'conclusion') {
+//     return null;
+//   }
+//   const menu = props.appMenus.find(m => String(m.id) === activeCategory.value);
+//   if (!menu) return null;
+
+//   return {
+//     ...menu,
+//     points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
+//   };
+// });
 
 const getVisiblePoints = (menuPoints, isDamageMenu) => {
   if (!isDamageMenu) {
@@ -964,6 +1059,7 @@ watch(vehicleDetails, (newDetails) => {
 watch(conclusionState, (newConclusion) => {
     form.overall_note = newConclusion.notes;
 }, { deep: true });
+
 
 // =========================================================================
 // VALIDASI & COMPUTED PROPERTIES
@@ -1129,80 +1225,895 @@ const allMenusComplete = computed(() => {
   return vehicleComplete && regularMenusComplete && conclusionComplete;
 });
 
-// Check if menu is complete
-const isMenuComplete = (menu) => {
 
-  if (menu.input_type === 'damage') {
-    // const pointsWithData = getVisiblePoints(menu.menu_point, true);
-    // return pointsWithData.length > 0;
+// Helper function untuk mendapatkan settings (sama seperti di isPointComplete)
+const getPointSettings = (point) => {
+  try {
+    return typeof point.settings === 'string' ? JSON.parse(point.settings) : point.settings;
+  } catch (e) {
+    return {};
+  }
+};
 
-     // Selalu dianggap complete, regardless of data
+// Helper function untuk cek kompatibilitas di menu
+const isPointCompatibleInMenu = (point) => {
+  const settings = getPointSettings(point);
+  
+  // Jika tidak ada config kompatibilitas, langsung return true
+  if (!(settings.transmission || settings.fuel_type || settings.rear_door || settings.pick_up || settings.box)) {
     return true;
+  }
+
+  const carTransmission = props.car?.transmission;
+  const carFuelType = props.car?.fuel_type;
+  
+  // Check transmission
+  if (settings.transmission && Array.isArray(settings.transmission) && settings.transmission.length > 0) {
+    if (carTransmission && !settings.transmission.includes(carTransmission)) {
+      return false;
+    }
+  }
+
+  // Check fuel type
+  if (settings.fuel_type && settings.fuel_type.trim() !== '') {
+    if (carFuelType && settings.fuel_type !== carFuelType) {
+      return false;
+    }
+  }
+
+  // Check vehicle features
+  if (settings.rear_door) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.rear_door) {
+      return false;
+    }
+  }
+
+    // LOGIKA OR untuk pick_up dan box:
+  // Jika point memiliki BOTH pick_up dan box settings
+  if (settings.pick_up && settings.box) {
+    // Cek apakah kendaraan memiliki PICK_UP ATAU BOX
+    if (vehicleFeatures.value) {
+      const hasPickUp = vehicleFeatures.value.pick_up === true;
+      const hasBox = vehicleFeatures.value.box === true;
+      
+      // Jika kendaraan TIDAK memiliki pick_up DAN TIDAK memiliki box
+      if (!hasPickUp && !hasBox) {
+        return false;
+      }
+      // Jika kendaraan memiliki salah satu atau keduanya, lanjutkan pengecekan
+    } else {
+      return false; // vehicleFeatures tidak ada
+    }
+  } 
+  // Jika hanya pick_up saja
+  else if (settings.pick_up) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.pick_up) {
+      return false;
+    }
+  } 
+  // Jika hanya box saja
+  else if (settings.box) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.box) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// Check if menu is complete - MENGGUNAKAN LOGIKA YANG SAMA DENGAN isPointComplete
+const isMenuComplete = (menu) => {
+  if (menu.input_type === 'damage') {
+    // For damage menus, validate visible points like regular menus
+    const visiblePoints = (getVisiblePoints(menu.menu_point, true) || []);
+
+    // Filter hanya point-point yang aktif/visible, is_default, DAN compatible
+    const activeRequiredPoints = visiblePoints.filter(point => {
+      // Cek kompatibilitas point
+      const isCompatible = isPointCompatibleInMenu(point);
+      if (!isCompatible) return false;
+
+      // Cek apakah point adalah triggered point
+      const settings = getPointSettings(point);
+      const menuPointId = point.id?.toString();
+
+      if (settings?.is_triggered) {
+        // Untuk point triggered, jika sudah dipicu (muncul), maka harus divalidasi sama seperti point biasa
+        const isTriggered = triggeredPoints.value.includes(menuPointId);
+        return isTriggered; // Include in validation if triggered, exclude if not
+      }
+
+      // Untuk point non-triggered, gunakan logika biasa
+      return point.is_default;
+    });
+
+    // Cek setiap point menggunakan logika yang sama dengan isPointComplete
+    return activeRequiredPoints.every(point => {
+      const pointId = point.inspection_point_id;
+      const result = form.results[pointId];
+      const images = form.images[pointId] || [];
+
+      // Jika point wajib diisi (settings.is_required = true)
+      const settings = getPointSettings(point);
+      let isRequired = settings.is_required !== false; // default true
+
+      // For triggered points, always require when they appear
+      if (settings?.is_triggered && triggeredPoints.value.includes(point.id?.toString())) {
+        isRequired = true;
+      }
+
+      // Jika tidak wajib diisi, selalu return true
+      if (!isRequired) {
+        return true;
+      }
+
+      if (!result) return false;
+
+      const isMultiSelection = Array.isArray(result.status);
+      const inputType = point.input_type;
+
+      switch(inputType) {
+        case 'text':
+          if (!result.note || result.note.trim() === '') return false;
+
+          if (settings.min_length) {
+            const minLength = parseInt(settings.min_length);
+            if (result.note.trim().length < minLength) return false;
+          }
+
+          if (settings.max_length) {
+            const maxLength = parseInt(settings.max_length);
+            if (result.note.trim().length > maxLength) return false;
+          }
+
+          return true;
+
+        case 'number':
+          if (!result.note || result.note.trim() === '') return false;
+
+          const numValue = parseFloat(result.note);
+          if (isNaN(numValue)) return false;
+
+          if (settings.min !== undefined) {
+            const min = parseFloat(settings.min);
+            if (numValue < min) return false;
+          }
+
+          if (settings.max !== undefined) {
+            const max = parseFloat(settings.max);
+            if (numValue > max) return false;
+          }
+
+          if (settings.step) {
+            const step = parseFloat(settings.step);
+            const remainder = (numValue - (settings.min || 0)) % step;
+            if (Math.abs(remainder) > 0.00001 && Math.abs(remainder - step) > 0.00001) {
+              return false;
+            }
+          }
+
+          return true;
+
+        case 'textarea':
+          if (!result.note || result.note.trim() === '') return false;
+
+          if (settings.min_length) {
+            const minLength = parseInt(settings.min_length);
+            if (result.note.trim().length < minLength) return false;
+          }
+
+          if (settings.max_length) {
+            const maxLength = parseInt(settings.max_length);
+            if (result.note.trim().length > maxLength) return false;
+          }
+
+          return true;
+
+        case 'account':
+          if (!result.note || result.note.trim() === '') return false;
+
+          const cleanValue = result.note.replace(/[^0-9]/g, '');
+          const numAccount = parseFloat(cleanValue);
+          if (isNaN(numAccount)) return false;
+
+          if (settings.min_value) {
+            const minValue = parseFloat(settings.min_value);
+            if (numAccount < minValue) return false;
+          }
+
+          if (settings.max_value) {
+            const maxValue = parseFloat(settings.max_value);
+            if (numAccount > maxValue) return false;
+          }
+
+          return true;
+
+        case 'date':
+          if (!result.note || result.note.trim() === '') return false;
+
+          const selectedDate = new Date(result.note);
+
+          if (settings.min_date) {
+            const minDate = new Date(settings.min_date);
+            if (selectedDate < minDate) return false;
+          }
+
+          if (settings.max_date) {
+            const maxDate = new Date(settings.max_date);
+            if (selectedDate > maxDate) return false;
+          }
+
+          return true;
+
+        case 'radio':
+          if (!result.status) return false;
+
+          if (isMultiSelection) {
+            // Multi selection
+            if (result.status.length === 0) return false;
+
+            let hasRequiredTextarea = false;
+            let hasRequiredImage = false;
+
+            // Cek apakah ada opsi yang memerlukan textarea/gambar yang WAJIB diisi
+            for (const selectedValue of result.status) {
+              const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+              if (!selectedOption) continue;
+
+              if (selectedOption.settings?.show_textarea &&
+                  selectedOption.settings.textarea_is_required !== false) {
+                hasRequiredTextarea = true;
+              }
+
+              if (selectedOption.settings?.show_image_upload &&
+                  selectedOption.settings.image_is_required !== false) {
+                hasRequiredImage = true;
+              }
+            }
+
+            // Validasi textarea jika ada yang wajib
+            if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
+              return false;
+            }
+
+            // Validasi panjang textarea jika ada isinya
+            if (result.note && result.note.trim() !== '') {
+              for (const selectedValue of result.status) {
+                const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+                if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+
+                if (selectedOption.settings.min_length) {
+                  const minLength = parseInt(selectedOption.settings.min_length);
+                  if (result.note.trim().length < minLength) return false;
+                }
+
+                if (selectedOption.settings.max_length) {
+                  const maxLength = parseInt(selectedOption.settings.max_length);
+                  if (result.note.trim().length > maxLength) return false;
+                }
+              }
+            }
+
+            // Validasi gambar jika ada yang wajib
+            if (hasRequiredImage && (!images || images.length === 0)) {
+              return false;
+            }
+
+            // Validasi jumlah file gambar jika ada
+            if (images && images.length > 0) {
+              let maxFiles = 1; // default
+              for (const selectedValue of result.status) {
+                const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+                if (selectedOption?.settings?.show_image_upload && selectedOption.settings.max_files) {
+                  maxFiles = Math.max(maxFiles, parseInt(selectedOption.settings.max_files));
+                }
+              }
+
+              if (images.length > maxFiles) return false;
+            }
+
+            return true;
+
+          } else {
+            // Single selection
+            const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+            if (!selectedOption) return false;
+
+            // Validasi textarea
+            if (selectedOption.settings?.show_textarea) {
+              if (selectedOption.settings.textarea_is_required !== false) {
+                if (!result.note || result.note.trim() === '') {
+                  return false;
+                }
+              }
+
+              if (result.note && result.note.trim() !== '') {
+                if (selectedOption.settings.min_length) {
+                  const minLength = parseInt(selectedOption.settings.min_length);
+                  if (result.note.trim().length < minLength) return false;
+                }
+                if (selectedOption.settings.max_length) {
+                  const maxLength = parseInt(selectedOption.settings.max_length);
+                  if (result.note.trim().length > maxLength) return false;
+                }
+              }
+            }
+
+            // Validasi image upload
+            if (selectedOption.settings?.show_image_upload) {
+              if (selectedOption.settings.image_is_required !== false) {
+                if (!images || images.length === 0) {
+                  return false;
+                }
+              }
+
+              if (images && images.length > 0 && selectedOption.settings.max_files) {
+                const maxFiles = parseInt(selectedOption.settings.max_files);
+                if (images.length > maxFiles) return false;
+              }
+            }
+
+            return true;
+          }
+
+        case 'select':
+          // Single selection untuk select
+          if (!result.status) return false;
+
+          const selectedOptionSelect = settings.radios?.find(opt => opt.value === result.status);
+          if (!selectedOptionSelect) return false;
+
+          // Validasi textarea
+          if (selectedOptionSelect.settings?.show_textarea) {
+            if (selectedOptionSelect.settings.textarea_is_required !== false) {
+              if (!result.note || result.note.trim() === '') {
+                return false;
+              }
+            }
+
+            if (result.note && result.note.trim() !== '') {
+              if (selectedOptionSelect.settings.min_length) {
+                const minLength = parseInt(selectedOptionSelect.settings.min_length);
+                if (result.note.trim().length < minLength) return false;
+              }
+              if (selectedOptionSelect.settings.max_length) {
+                const maxLength = parseInt(selectedOptionSelect.settings.max_length);
+                if (result.note.trim().length > maxLength) return false;
+              }
+            }
+          }
+
+          // Validasi image upload
+          if (selectedOptionSelect.settings?.show_image_upload) {
+            if (selectedOptionSelect.settings.image_is_required !== false) {
+              if (!images || images.length === 0) {
+                return false;
+              }
+            }
+
+            if (images && images.length > 0 && selectedOptionSelect.settings.max_files) {
+              const maxFiles = parseInt(selectedOptionSelect.settings.max_files);
+              if (images.length > maxFiles) return false;
+            }
+          }
+
+          return true;
+
+        case 'imageTOradio':
+          // Gambar wajib ada
+          if (!images || images.length === 0) return false;
+
+          // Status/option wajib ada
+          if (!result.status) return false;
+
+          // Validasi jumlah file gambar dari settings global
+          if (settings.max_files) {
+            const maxFiles = parseInt(settings.max_files);
+            if (images.length > maxFiles) return false;
+          }
+
+          if (isMultiSelection) {
+            // Multi selection untuk imageTOradio
+            if (result.status.length === 0) return false;
+
+            let hasRequiredTextarea = false;
+
+            // Cek apakah ada opsi yang memerlukan textarea yang WAJIB diisi
+            for (const selectedValue of result.status) {
+              const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+              if (!selectedOption) continue;
+
+              if (selectedOption.settings?.show_textarea &&
+                  selectedOption.settings.textarea_is_required !== false) {
+                hasRequiredTextarea = true;
+              }
+            }
+
+            // Validasi textarea jika ada yang wajib
+            if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
+              return false;
+            }
+
+            // Validasi panjang textarea jika ada isinya
+            if (result.note && result.note.trim() !== '') {
+              for (const selectedValue of result.status) {
+                const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+                if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+
+                if (selectedOption.settings.min_length) {
+                  const minLength = parseInt(selectedOption.settings.min_length);
+                  if (result.note.trim().length < minLength) return false;
+                }
+
+                if (selectedOption.settings.max_length) {
+                  const maxLength = parseInt(selectedOption.settings.max_length);
+                  if (result.note.trim().length > maxLength) return false;
+                }
+              }
+            }
+
+            return true;
+
+          } else {
+            // Single selection untuk imageTOradio
+            const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+            if (!selectedOption) return false;
+
+            // Validasi textarea
+            if (selectedOption.settings?.show_textarea) {
+              if (selectedOption.settings.textarea_is_required !== false) {
+                if (!result.note || result.note.trim() === '') {
+                  return false;
+                }
+              }
+
+              if (result.note && result.note.trim() !== '') {
+                if (selectedOption.settings.min_length) {
+                  const minLength = parseInt(selectedOption.settings.min_length);
+                  if (result.note.trim().length < minLength) return false;
+                }
+                if (selectedOption.settings.max_length) {
+                  const maxLength = parseInt(selectedOption.settings.max_length);
+                  if (result.note.trim().length > maxLength) return false;
+                }
+              }
+            }
+
+            return true;
+          }
+
+        case 'image':
+          if (images.length === 0) return false;
+
+          if (settings.max_files) {
+            const maxFiles = parseInt(settings.max_files);
+            if (images.length > maxFiles) return false;
+          }
+
+          return true;
+
+        default:
+          return !!(result.status || result.note?.trim());
+      }
+    });
   }
   
   if (menu.id === 'conclusion') {
     return isConclusionComplete();
   }
+  
   if (menu.id === 'vehicle') {
     return isVehicleFormComplete.value;
   }
 
- const visiblePoints = (getVisiblePoints(menu.menu_point, false) || []);
+  const visiblePoints = (getVisiblePoints(menu.menu_point, false) || []);
   
   // Filter hanya point-point yang aktif/visible, is_default, DAN compatible
   const activeRequiredPoints = visiblePoints.filter(point => {
-    // Cek kompatibilitas seperti di komponen contoh
-    return point.is_default && isPointCompatible(point);
+    // Cek kompatibilitas point
+    const isCompatible = isPointCompatibleInMenu(point);
+    if (!isCompatible) return false;
+
+    // Cek apakah point adalah triggered point
+    const settings = getPointSettings(point);
+    const menuPointId = point.id?.toString();
+
+    if (settings?.is_triggered) {
+      // Untuk point triggered, jika sudah dipicu (muncul), maka harus divalidasi sama seperti point biasa
+      const isTriggered = triggeredPoints.value.includes(menuPointId);
+      return isTriggered; // Include in validation if triggered, exclude if not
+    }
+
+    // Untuk point non-triggered, gunakan logika biasa
+    return point.is_default;
   });
 
+
+  // Cek setiap point menggunakan logika yang sama dengan isPointComplete
   return activeRequiredPoints.every(point => {
-    const result = form.results[point.inspection_point_id];
-    const image = form.images[point.inspection_point_id];
+    const pointId = point.inspection_point_id;
+    const result = form.results[pointId];
+    const images = form.images[pointId] || [];
+    
+    // Jika point wajib diisi (settings.is_required = true)
+    const settings = getPointSettings(point);
+    let isRequired = settings.is_required !== false; // default true
+
+    // For triggered points, always require when they appear
+    if (settings?.is_triggered && triggeredPoints.value.includes(point.id?.toString())) {
+      isRequired = true;
+    }
+
+    // Jika tidak wajib diisi, selalu return true
+    if (!isRequired) {
+      return true;
+    }
+
     if (!result) return false;
     
-    const settings = parseSettings(point.settings);
+    const isMultiSelection = Array.isArray(result.status);
+    const inputType = point.input_type;
     
-    switch(point.input_type) {
+    switch(inputType) {
       case 'text':
+        if (!result.note || result.note.trim() === '') return false;
+        
+        if (settings.min_length) {
+          const minLength = parseInt(settings.min_length);
+          if (result.note.trim().length < minLength) return false;
+        }
+        
+        if (settings.max_length) {
+          const maxLength = parseInt(settings.max_length);
+          if (result.note.trim().length > maxLength) return false;
+        }
+        
+        return true;
+
       case 'number':
-      case 'date':
-      case 'account':
+        if (!result.note || result.note.trim() === '') return false;
+        
+        const numValue = parseFloat(result.note);
+        if (isNaN(numValue)) return false;
+        
+        if (settings.min !== undefined) {
+          const min = parseFloat(settings.min);
+          if (numValue < min) return false;
+        }
+        
+        if (settings.max !== undefined) {
+          const max = parseFloat(settings.max);
+          if (numValue > max) return false;
+        }
+        
+        if (settings.step) {
+          const step = parseFloat(settings.step);
+          const remainder = (numValue - (settings.min || 0)) % step;
+          if (Math.abs(remainder) > 0.00001 && Math.abs(remainder - step) > 0.00001) {
+            return false;
+          }
+        }
+        
+        return true;
+
       case 'textarea':
-        return !!result.note?.trim();
-      
-      case 'select':
+        if (!result.note || result.note.trim() === '') return false;
+        
+        if (settings.min_length) {
+          const minLength = parseInt(settings.min_length);
+          if (result.note.trim().length < minLength) return false;
+        }
+        
+        if (settings.max_length) {
+          const maxLength = parseInt(settings.max_length);
+          if (result.note.trim().length > maxLength) return false;
+        }
+        
+        return true;
+
+      case 'account':
+        if (!result.note || result.note.trim() === '') return false;
+        
+        const cleanValue = result.note.replace(/[^0-9]/g, '');
+        const numAccount = parseFloat(cleanValue);
+        if (isNaN(numAccount)) return false;
+        
+        if (settings.min_value) {
+          const minValue = parseFloat(settings.min_value);
+          if (numAccount < minValue) return false;
+        }
+        
+        if (settings.max_value) {
+          const maxValue = parseFloat(settings.max_value);
+          if (numAccount > maxValue) return false;
+        }
+        
+        return true;
+
+      case 'date':
+        if (!result.note || result.note.trim() === '') return false;
+        
+        const selectedDate = new Date(result.note);
+        
+        if (settings.min_date) {
+          const minDate = new Date(settings.min_date);
+          if (selectedDate < minDate) return false;
+        }
+        
+        if (settings.max_date) {
+          const maxDate = new Date(settings.max_date);
+          if (selectedDate > maxDate) return false;
+        }
+        
+        return true;
+
       case 'radio':
         if (!result.status) return false;
         
-        const selectedOption = settings.radios?.find(opt => opt.value === result.status);
-        if (selectedOption?.settings) {
-          if (selectedOption.settings.show_textarea && !result.note?.trim()) {
+        if (isMultiSelection) {
+          // Multi selection
+          if (result.status.length === 0) return false;
+          
+          let hasRequiredTextarea = false;
+          let hasRequiredImage = false;
+          
+          // Cek apakah ada opsi yang memerlukan textarea/gambar yang WAJIB diisi
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption) continue;
+            
+            if (selectedOption.settings?.show_textarea && 
+                selectedOption.settings.textarea_is_required !== false) {
+              hasRequiredTextarea = true;
+            }
+            
+            if (selectedOption.settings?.show_image_upload && 
+                selectedOption.settings.image_is_required !== false) {
+              hasRequiredImage = true;
+            }
+          }
+          
+          // Validasi textarea jika ada yang wajib
+          if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
             return false;
           }
-          if (selectedOption.settings.show_image_upload && image?.length === 0) {
+          
+          // Validasi panjang textarea jika ada isinya
+          if (result.note && result.note.trim() !== '') {
+            for (const selectedValue of result.status) {
+              const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+              if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+              
+              if (selectedOption.settings.min_length) {
+                const minLength = parseInt(selectedOption.settings.min_length);
+                if (result.note.trim().length < minLength) return false;
+              }
+              
+              if (selectedOption.settings.max_length) {
+                const maxLength = parseInt(selectedOption.settings.max_length);
+                if (result.note.trim().length > maxLength) return false;
+              }
+            }
+          }
+          
+          // Validasi gambar jika ada yang wajib
+          if (hasRequiredImage && (!images || images.length === 0)) {
             return false;
           }
+          
+          // Validasi jumlah file gambar jika ada
+          if (images && images.length > 0) {
+            let maxFiles = 1; // default
+            for (const selectedValue of result.status) {
+              const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+              if (selectedOption?.settings?.show_image_upload && selectedOption.settings.max_files) {
+                maxFiles = Math.max(maxFiles, parseInt(selectedOption.settings.max_files));
+              }
+            }
+            
+            if (images.length > maxFiles) return false;
+          }
+          
+          return true;
+          
+        } else {
+          // Single selection
+          const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+          if (!selectedOption) return false;
+          
+          // Validasi textarea
+          if (selectedOption.settings?.show_textarea) {
+            if (selectedOption.settings.textarea_is_required !== false) {
+              if (!result.note || result.note.trim() === '') {
+                return false;
+              }
+            }
+            
+            if (result.note && result.note.trim() !== '') {
+              if (selectedOption.settings.min_length) {
+                const minLength = parseInt(selectedOption.settings.min_length);
+                if (result.note.trim().length < minLength) return false;
+              }
+              if (selectedOption.settings.max_length) {
+                const maxLength = parseInt(selectedOption.settings.max_length);
+                if (result.note.trim().length > maxLength) return false;
+              }
+            }
+          }
+          
+          // Validasi image upload
+          if (selectedOption.settings?.show_image_upload) {
+            if (selectedOption.settings.image_is_required !== false) {
+              if (!images || images.length === 0) {
+                return false;
+              }
+            }
+            
+            if (images && images.length > 0 && selectedOption.settings.max_files) {
+              const maxFiles = parseInt(selectedOption.settings.max_files);
+              if (images.length > maxFiles) return false;
+            }
+          }
+          
+          return true;
         }
-        return true;
-      
-      case 'imageTOradio':
-        if (image?.length === 0 || !result.status) return false;
+
+      case 'select':
+        // Single selection untuk select
+        if (!result.status) return false;
         
-        const selectedOptionImage = settings.radios?.find(opt => opt.value === result.status);
-        if (selectedOptionImage?.settings) {
-          if (selectedOptionImage.settings.show_textarea && selectedOptionImage.settings.required && !result.note?.trim()) {
-            return false;
+        const selectedOptionSelect = settings.radios?.find(opt => opt.value === result.status);
+        if (!selectedOptionSelect) return false;
+        
+        // Validasi textarea
+        if (selectedOptionSelect.settings?.show_textarea) {
+          if (selectedOptionSelect.settings.textarea_is_required !== false) {
+            if (!result.note || result.note.trim() === '') {
+              return false;
+            }
+          }
+          
+          if (result.note && result.note.trim() !== '') {
+            if (selectedOptionSelect.settings.min_length) {
+              const minLength = parseInt(selectedOptionSelect.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            if (selectedOptionSelect.settings.max_length) {
+              const maxLength = parseInt(selectedOptionSelect.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
           }
         }
+        
+        // Validasi image upload
+        if (selectedOptionSelect.settings?.show_image_upload) {
+          if (selectedOptionSelect.settings.image_is_required !== false) {
+            if (!images || images.length === 0) {
+              return false;
+            }
+          }
+          
+          if (images && images.length > 0 && selectedOptionSelect.settings.max_files) {
+            const maxFiles = parseInt(selectedOptionSelect.settings.max_files);
+            if (images.length > maxFiles) return false;
+          }
+        }
+        
         return true;
-      
+
+      case 'imageTOradio':
+        // Gambar wajib ada
+        if (!images || images.length === 0) return false;
+        
+        // Status/option wajib ada
+        if (!result.status) return false;
+        
+        // Validasi jumlah file gambar dari settings global
+        if (settings.max_files) {
+          const maxFiles = parseInt(settings.max_files);
+          if (images.length > maxFiles) return false;
+        }
+        
+        if (isMultiSelection) {
+          // Multi selection untuk imageTOradio
+          if (result.status.length === 0) return false;
+          
+          let hasRequiredTextarea = false;
+          
+          // Cek apakah ada opsi yang memerlukan textarea yang WAJIB diisi
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption) continue;
+            
+            if (selectedOption.settings?.show_textarea && 
+                selectedOption.settings.textarea_is_required !== false) {
+              hasRequiredTextarea = true;
+            }
+          }
+          
+          // Validasi textarea jika ada yang wajib
+          if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
+            return false;
+          }
+          
+          // Validasi panjang textarea jika ada isinya
+          if (result.note && result.note.trim() !== '') {
+            for (const selectedValue of result.status) {
+              const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+              if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+              
+              if (selectedOption.settings.min_length) {
+                const minLength = parseInt(selectedOption.settings.min_length);
+                if (result.note.trim().length < minLength) return false;
+              }
+              
+              if (selectedOption.settings.max_length) {
+                const maxLength = parseInt(selectedOption.settings.max_length);
+                if (result.note.trim().length > maxLength) return false;
+              }
+            }
+          }
+          
+          return true;
+          
+        } else {
+          // Single selection untuk imageTOradio
+          const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+          if (!selectedOption) return false;
+          
+          // Validasi textarea
+          if (selectedOption.settings?.show_textarea) {
+            if (selectedOption.settings.textarea_is_required !== false) {
+              if (!result.note || result.note.trim() === '') {
+                return false;
+              }
+            }
+            
+            if (result.note && result.note.trim() !== '') {
+              if (selectedOption.settings.min_length) {
+                const minLength = parseInt(selectedOption.settings.min_length);
+                if (result.note.trim().length < minLength) return false;
+              }
+              if (selectedOption.settings.max_length) {
+                const maxLength = parseInt(selectedOption.settings.max_length);
+                if (result.note.trim().length > maxLength) return false;
+              }
+            }
+          }
+          
+          return true;
+        }
+
       case 'image':
-        return image?.length > 0;
-      
+        if (images.length === 0) return false;
+        
+        if (settings.max_files) {
+          const maxFiles = parseInt(settings.max_files);
+          if (images.length > maxFiles) return false;
+        }
+        
+        return true;
+
       default:
-        return !!result.status || !!result.note?.trim();
+        return !!(result.status || result.note?.trim());
     }
   });
+};
+
+
+// Fungsi untuk mengecek apakah point memiliki data
+const hasPointDataInMenu = (point) => {
+  const pointId = point.inspection_point_id;
+  
+  const hasServerResult = existingResults[pointId] !== undefined;
+  const hasServerImages = existingImages[pointId] && existingImages[pointId].length > 0;
+  
+  const hasLocalResult = form.results[pointId] && 
+                       (form.results[pointId].status || form.results[pointId].note);
+  
+  const hasLocalImages = form.images[pointId] && form.images[pointId].length > 0;
+
+  return hasServerResult || hasServerImages || hasLocalResult || hasLocalImages;
 };
 
 // =========================================================================
@@ -1515,14 +2426,28 @@ const handleMenuScroll = () => {
   // Bisa ditambahkan logic untuk handle scroll event jika diperlukan
 };
 // Navigasi
-const changeCategory = (menuId) => {
+// const changeCategory = (menuId) => {
+//   activeCategory.value = menuId;
+//   // Simpan ke localStorage
+//   setActiveCategory(menuId);
+  
+//   // Scroll ke tengah setelah perubahan kategori
+//   scrollActiveMenuToCenter();
+// };
+
+// Menjadi ini:
+const changeCategory = throttle((menuId) => {
+  // Skip jika sama
+  if (activeCategory.value === menuId) return;
+  
   activeCategory.value = menuId;
-  // Simpan ke localStorage
   setActiveCategory(menuId);
   
-  // Scroll ke tengah setelah perubahan kategori
-  scrollActiveMenuToCenter();
-};
+  // Scroll hanya untuk horizontal mode
+  if (menuMode.value === 'horizontal') {
+    scrollActiveMenuToCenter();
+  }
+}, 50); // Delay 50ms
 
 const navigate = (direction) => {
   let newIndex = activeIndex.value + direction;
@@ -1620,7 +2545,17 @@ watch(cameraQualitySetting, (newVal) => {
 });
 
 
+// Watch untuk perubahan data
+watch(() => form.results, (newResults) => {
+  // Re-initialize triggered points ketika results berubah
+  initializeTriggeredPointsFromData(props.appMenus);
+}, { deep: true });
+
+// Panggil fungsi inisialisasi saat data dimuat
 onMounted(() => {
+  // Inisialisasi triggered points dari data yang ada
+  initializeTriggeredPointsFromData(props.appMenus);
+
   const localData = getLocalData();
   
   // Inisialisasi swipe toggle
@@ -1685,7 +2620,6 @@ onMounted(() => {
   setTimeout(() => {
     scrollActiveMenuToCenter();
   }, 100);
-
 });
 </script>
 
@@ -1749,6 +2683,7 @@ html {
   left: 0;
   height: 100%;
 }
+
 .category-slide-enter-from {
   transform: translateX(100%); /* Sedikit dikurangi dari 150% agar lebih cepat */
   opacity: 0;

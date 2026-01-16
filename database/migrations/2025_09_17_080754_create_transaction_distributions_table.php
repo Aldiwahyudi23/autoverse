@@ -20,9 +20,13 @@ return new class extends Migration
             $table->decimal('amount', 12, 0);
             $table->decimal('percentage', 5, 2);
             $table->text('calculation_note')->nullable();
-              $table->boolean('is_released')->default(false); // apakah fee sudah dikirim ke user
+            $table->boolean('is_released')->default(false); // apakah fee sudah dikirim ke user
             $table->timestamp('released_at')->nullable();   // kapan fee dikirim
             $table->foreignId('released_by')->nullable()->constrained('users')->nullOnDelete(); // siapa yang kirim
+            $table->foreignId('withdrawal_id')
+                ->nullable()
+                ->constrained()
+                ->nullOnDelete(); // referensi ke permintaan penarikan
             $table->timestamps();
         });
     }

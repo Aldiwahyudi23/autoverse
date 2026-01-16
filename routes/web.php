@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\DataCar\CarController;
 use App\Http\Controllers\Finance\TransactionController;
+use App\Http\Controllers\Finance\WithdrawalController;
 use App\Http\Controllers\Inspection\InspectionController;
 use App\Http\Controllers\Inspection\RepairEstimationController;
 use App\Http\Controllers\InspectionDataController;
@@ -244,6 +245,12 @@ Route::middleware([
         });
     });
 
+        // Car search endpoints
+    // Route::get('/api/cars/search', [CarController::class, 'search']);
+    // Route::get('/api/cars/{id}', [CarController::class, 'show']);
+
+
+
     // ========================= BANTUAN =========================
     Route::get('/bantuan', [HomeController::class, 'bantuan'])
         ->name('bantuan.index')
@@ -329,6 +336,21 @@ Route::middleware([
     // Route untuk autocomplete customer
     Route::get('/customers/search', [InspectionDataController::class, 'getCustomers'])
         ->name('customers.search');
+
+    Route::prefix('withdrawals')->group(function () {
+        Route::get('/pending-distributions', [WithdrawalController::class, 'getPendingDistributions']);
+        Route::post('/create', [WithdrawalController::class, 'createWithdrawal']);
+        Route::get('/my-withdrawals', [WithdrawalController::class, 'getMyWithdrawals']);
+        Route::get('/statistics', [WithdrawalController::class, 'getStatistics']);
+        
+        // Admin routes
+        Route::middleware(['auth',])->group(function () {
+            Route::get('/requests', [WithdrawalController::class, 'getWithdrawalRequests']);
+            Route::get('/{id}', [WithdrawalController::class, 'getWithdrawalDetail']);
+            Route::post('/{id}/process', [WithdrawalController::class, 'processWithdrawal']);
+            Route::post('/{id}/complete', [WithdrawalController::class, 'completeWithdrawal']);
+    });
+});
 
         
 });

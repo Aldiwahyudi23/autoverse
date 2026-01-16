@@ -576,9 +576,9 @@ const isFormChanged = computed(() => {
 });
 
 // Ini adalah properti computed yang menentukan apakah tombol 'Update' bisa diklik atau tidak
-// Tombol bisa diklik jika ada perubahan DAN tidak ada error validasi
+// Tombol bisa diklik jika ada perubahan DAN tidak ada error validasi DAN car_id sudah dipilih dari hasil pencarian
 const canUpdate = computed(() => {
-    return isFormChanged.value && !isFormInvalid.value;
+    return isFormChanged.value && !isFormInvalid.value && form.car_id !== null;
 });
 
 // --- Fungsi Pencarian Mobil dengan Fuzzy Search ---
@@ -626,7 +626,7 @@ const searchCars = debounce(() => {
             });
             
             // Lakukan pencarian dan batasi hasil
-            const results = fuse.search(query).slice(0, 10);
+            const results = fuse.search(query).slice(0, 5);
             filteredCars.value = results.map(result => result.item);
         } else {
             filteredCars.value = [];

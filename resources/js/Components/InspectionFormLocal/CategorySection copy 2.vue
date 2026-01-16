@@ -1,0 +1,1138 @@
+<template>
+  <div v-if="props.head === 'vertical'"
+    class="px-6 py-2 border-b flex items-center justify-between bg-indigo-200"
+    :class=" 'fixed top-0 left-0 right-0 z-20'"
+  >
+    <h4 class="text-base font-semibold text-indigo-700">
+      {{ category.name }}
+    </h4>
+
+    <button
+      v-if="hasHiddenPoints"
+      @click="toggleGlobalHidden"
+      class="text-sm text-indigo-700 hover:underline focus:outline-none"
+    >
+      {{ showGlobalHidden ? 'Sembunyikan Semua' : 'Tampilkan Point Lain' }}
+    </button>
+  </div>
+  <div class="bg-gray-50 shadow-lg rounded-xl overflow-hidden border border-gray-100"
+    :class="props.head === 'vertical' ? 'pt-6' : ''"
+  >
+
+    <button
+      v-if="!isHeaderVisible && hasHiddenPoints"
+      @click="toggleGlobalHidden"
+      class="fixed top-3 right-2 z-10 bg-indigo-600 text-white p-2 rounded-full shadow-lg"
+    >
+      <svg v-if="showGlobalHidden" xmlns="http://www.w3.org/2000/svg"
+        class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+
+      <svg v-else xmlns="http://www.w3.org/2000/svg"
+        class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.956 9.956 0 012.006-3.362M9.88 9.88a3 3 0 104.24 4.24M6.1 6.1l11.8 11.8" />
+      </svg>
+    </button>
+
+
+    <div v-if="props.head === 'horizontal'"
+      ref="categoryHeader"
+      class="bg-indigo-200 px-6 py-2 border-b flex items-center justify-between">
+      <h4 class="text-base font-semibold text-indigo-700">
+        {{ category.name }}
+      </h4>
+
+      <button
+        v-if="hasHiddenPoints"
+        @click="toggleGlobalHidden"
+        class="text-sm text-indigo-700 hover:underline focus:outline-none"
+      >
+        {{ showGlobalHidden ? 'Sembunyikan' : 'Tampilkan Point Lain' }}
+      </button>
+    </div>
+    
+    <div class="p-4 space-y-4"> 
+      <div v-for="(item, index) in renderedItems" :key="index" 
+        class="space-y-2 last:border-0 last:pb-0"
+        :class="item.is_link ? 'pb-0' : 'pb-2 border-b border-gray-100'"
+      >
+        
+        <div v-if="item.is_link" 
+          class="flex justify-end py-1"> <button
+            @click="revealHiddenPoints(item.hiddenIds)"
+            class="text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline focus:outline-none"
+          >
+            Tampilkan {{ item.count }} Point Tersembunyi
+          </button>
+        </div>
+
+        <div v-else class="space-y-2">
+          <!-- Header dengan compatibility badge -->
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-900">
+               <span class="font-bold">{{ item.inspection_point?.name }}</span>
+                
+                <span v-if="item.settings?.is_required" class="text-red-500">*</span>
+                <span v-if="!item.is_default && !hasPointData(item.inspection_point?.id)"
+                  class="italic text-xs text-gray-400 ml-2"
+                >
+                  (opsional)
+                </span>
+              </label>
+              
+              <!-- Compatibility Info -->
+              <div v-if="showCompatibilityInfo(item)" class="mt-1">
+                <div v-if="hasCompatibilitySettings(item)"
+                  class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                     <div v-if="item.settings?.transmission">
+                        {{ item.settings.transmission.join(', ') }}
+                      </div>
+                      <div v-if="item.settings?.fuel_type">
+                      {{ item.settings.fuel_type }}
+                      </div>
+                      <div v-if="item.settings?.rear_door">
+                        Pintu Belakang
+                      </div>
+                      <div v-if="item.settings?.pick_up">
+                        Tipe Pick Up,
+                      </div>
+                      <div v-if="item.settings?.box">
+                        Tipe Box
+                      </div>
+                </div>
+              </div>
+            </div>
+            
+            <span 
+              v-if="isPointComplete(item)"
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+            >
+              ✓
+            </span>
+          </div>
+          
+          <input-text
+            v-if="item.input_type === 'text' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].note"
+            :required="item.settings?.is_required"
+            :min-length="item.settings?.min_length"
+            :max-length="item.settings?.max_length"
+            :allowSpace="item.settings?.allow_space"
+            :textTransform="item.settings?.text_transform"
+            :placeholder="item.settings?.placeholder || 'Masukan text'"
+            :error="form.errors[`results.${item.inspection_point?.id}.note`]"
+            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'note')"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+          
+          <input-number
+            v-if="item.input_type === 'number' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].note"
+            :required="item.settings?.is_required"
+            :min="item.settings?.min"
+            :max="item.settings?.max"
+            :step="item.settings?.step || 1"
+            :placeholder="item.settings?.placeholder || 'Masukan number'"
+            :error="form.errors[`results.${item.inspection_point?.id}.note`]"
+            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'note')"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+
+          <input-account
+            v-if="item.input_type === 'account' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].note"
+            :required="item.settings?.is_required"
+            :placeholder="item.settings?.placeholder || 'Masukkan nilai'"
+            :error="form.errors[`results.${item.inspection_point?.id}.note`]"
+            :point-id="item.inspection_point?.id"
+            :settings="item.settings"
+            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'note')"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+          
+          <input-date
+            v-if="item.input_type === 'date' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].note"
+            :required="item.settings?.is_required"
+            :min-date="item.settings?.min_date"
+            :max-date="item.settings?.max_date"
+            :error="form.errors[`results.${item.inspection_point?.id}.note`]"
+            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'note')"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+          
+          <input-textarea
+            v-if="item.input_type === 'textarea' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].note"
+            :required="item.settings?.is_required"
+            :min-length="item.settings?.min_length"
+            :max-length="item.settings?.max_length"
+            :placeholder="item.settings?.placeholder || 'Masukkan teks di sini'"
+            :settings="item.settings"
+            :error="form.errors[`results.${item.inspection_point?.id}.note`]"
+            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'note')"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+
+          <input-radio
+            v-if="item.input_type === 'radio' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].status"
+            :notes="form.results[item.inspection_point?.id].note"
+            :images="form.images[item.inspection_point?.id]"
+            :required="item.settings?.is_required"
+            :point-id="item.inspection_point?.id"
+            :point="item"
+            :inspection-id="inspectionId" 
+            :settings="item.settings"
+            :point-name="item.inspection_point?.name"
+            :subtitle="item.inspection_point?.description"
+            :selected-point="item.inspection_point ?? null"
+            :options="item.settings?.radios || defaultRadioOptions"
+            :error="form.errors[`results.${item.inspection_point?.id}.status`]"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event, 'status')"
+            @trigger-change="handleDirectTrigger($event)"
+            @update:notes="val => form.results[item.inspection_point?.id].note = val"
+            @update:images="val => form.images[item.inspection_point?.id] = val"
+            @save="saveResult(item.inspection_point?.id)"
+            @hapus="HapusPoint(item.inspection_point?.id)"
+          />
+
+          <InputImageToRadio
+            v-if="item.input_type === 'imageTOradio' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].status"
+            :notes="form.results[item.inspection_point?.id].note"
+            :images="form.images[item.inspection_point?.id]"
+            :required="item.settings?.is_required"
+            :point-id="item.inspection_point?.id"
+            :inspection-id="inspectionId" 
+            :settings="item.settings"
+            :point-name="item.inspection_point?.name"
+            :subtitle="item.inspection_point?.description"
+            :point="item"
+            :selected-point="item.inspection_point ?? null"
+            :options="item.settings?.radios || defaultRadioOptions"
+            :error="form.errors[`results.${item.inspection_point?.id}.status`]"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event,'status')"
+            @trigger-change="handleDirectTrigger($event)"
+            @update:notes="val => form.results[item.inspection_point?.id].note = val"
+            @update:images="val => form.images[item.inspection_point?.id] = val"
+            @save="saveResult(item.inspection_point?.id)"
+            @hapus="HapusPoint(item.inspection_point?.id)"
+          />
+          
+          <input-image
+            v-if="item.input_type === 'image' && isFullyCompatible(item)"
+            v-model="form.images[item.inspection_point?.id]"
+            :error="form.errors[`images.${item.inspection_point?.id}`]"
+            :inspection-id="inspectionId"
+            :point-id="item.inspection_point?.id"
+            :point="item.inspection_point"
+            :point-name="item.inspection_point?.name"
+            :settings="item.settings"
+            @update:notes="val => form.results[item.inspection_point?.id].note = val"
+            @update:status="val => form.results[item.inspection_point?.id].status = val"
+          />
+
+          <input-select
+            v-if="item.input_type === 'select' && isFullyCompatible(item)"
+            v-model="form.results[item.inspection_point?.id].status"
+            :required="item.settings?.is_required"
+            :error="form.errors[`results.${item.inspection_point?.id}.status`]"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event, 'status')"
+            @trigger-change="handleDirectTrigger($event)"
+            @save="saveResult(item.inspection_point?.id)"
+          />
+
+          <!-- Not Compatible Message -->
+          <div v-if="!isFullyCompatible(item) && hasCompatibilitySettings(item)" 
+               class="p-3 bg-gray-100 rounded text-sm text-gray-600">
+            <p class="font-medium">Tidak tersedia untuk kendaraan ini</p>
+            <p class="text-xs mt-1">Point ini hanya tersedia untuk:</p>
+            <ul class="text-xs mt-1 list-disc list-inside">
+              <li v-if="item.settings?.transmission">
+                Transmisi: {{ getTransmissionLabels(item.settings.transmission).join(', ') }}
+              </li>
+              <li v-if="item.settings?.fuel_type">
+                Bahan bakar: {{ item.settings.fuel_type }}
+              </li>
+              <li v-if="item.settings?.rear_door">Kendaraan dengan pintu belakang</li>
+              <li v-if="item.settings?.pick_up">Tipe pick up</li>
+              <li v-if="item.settings?.box">Kendaraan dengan box</li>
+            </ul>
+          </div>
+        </div>
+        
+      </div>
+
+      <div v-if="renderedItems.filter(i => !i.is_link).length === 0" class="text-center py-8 text-gray-500">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <p class="mt-2 text-sm">Tidak ada data untuk ditampilkan</p>
+        <p v-if="category.isDamageMenu" class="text-xs text-gray-400">
+          Tambahkan data melalui tombol "+" di pojok kanan bawah
+        </p>
+      </div>
+    </div>
+  </div>
+</template>
+<script setup>
+import { onMounted, onUnmounted, computed, ref, watch, inject, provide } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+
+// Import components
+import InputText from './InputText.vue';
+import InputNumber from './InputNumber.vue';
+import InputDate from './InputDate.vue';
+import InputAccount from './InputAccount.vue';
+import InputTextarea from './InputTextarea.vue';
+import InputSelect from './InputSelect.vue';
+import InputRadio from './InputRadio.vue';
+import InputImage from './InputImage.vue';
+import InputImageToRadio from './InputImageToRadio.vue';
+
+const props = defineProps({
+  category: Object,
+  form: Object,
+  head: Object,
+  inspectionId: String,
+  selectedPoint: Object,
+  car: Object,
+});
+
+const emit = defineEmits(['updateResult', 'removeImage', 'hapusPoint', 'triggerPointsChanged']);
+
+// Inject dari parent untuk local storage features
+const vehicleFeatures = inject('vehicleFeatures', ref(null));
+
+// Setelah data di-load dari localStorage
+vehicleFeatures.value = JSON.parse(localStorage.getItem('vehicle_features') || '{}');
+
+provide('vehicleFeatures', vehicleFeatures);
+
+// State untuk tampilan
+const showGlobalHidden = ref(false); 
+const manuallyShownPoints = ref([]); 
+const triggeredPoints = ref([]); // Menyimpan MenuPoint.id yang sudah terpicu
+const isHeaderVisible = ref(true);
+const categoryHeader = ref(null);
+
+const page = usePage();
+
+// Transmission mapping untuk label
+const transmissionLabels = {
+  'MT': 'Manual Transmission (MT)',
+  'AT': 'Automatic Transmission (AT)', 
+  'CVT': 'Continuously Variable Transmission (CVT)',
+  'e-CVT': 'Electronic CVT (e-CVT)',
+  'DCT': 'Dual Clutch Transmission (DCT)',
+  'AMT': 'Automated Manual Transmission (AMT)',
+  'IVT': 'Intelligent Variable Transmission (IVT)',
+  'SSG': 'Seamless Shift Gearbox (SSG)',
+  'AGS': 'Auto Gear Shift (AGS)',
+  'DHT': 'Dedicated Hybrid Transmission (DHT)'
+};
+
+// Setup intersection observer untuk header
+onMounted(() => {
+  const observer = new IntersectionObserver(([entry]) => {
+    isHeaderVisible.value = entry.isIntersecting;
+  }, { threshold: 0.1 });
+
+  if (categoryHeader.value) {
+    observer.observe(categoryHeader.value);
+  }
+
+  onUnmounted(() => {
+    if (categoryHeader.value) observer.unobserve(categoryHeader.value);
+  });
+
+  // Inisialisasi triggered points dari data yang sudah ada
+  initializeTriggeredPoints();
+});
+
+// Fungsi untuk menginisialisasi triggered points dari data yang sudah ada
+const initializeTriggeredPoints = () => {
+  const points = props.category.points || [];
+  
+  // Reset triggered points terlebih dahulu
+  triggeredPoints.value = [];
+  
+  points.forEach(point => {
+    const menuPointId = point.id; // MenuPoint.id
+    if (!menuPointId) return;
+    
+    // Normalize menuPointId ke string
+    const normalizedMenuPointId = menuPointId.toString();
+    
+    // Jika point ini adalah point pemicu (parent), cek apakah ada pilihan yang aktif
+    if (point.input_type === 'radio' || point.input_type === 'imageTOradio' || point.input_type === 'select') {
+      const result = props.form.results[point.inspection_point?.id];
+      if (result && result.status) {
+        // Cek apakah option yang dipilih memiliki show_trigger: true
+        let selectedOptions = [];
+        
+        if (Array.isArray(result.status)) {
+          // Multi-select
+          result.status.forEach(val => {
+            const opt = point.settings?.radios?.find(opt => opt.value === val);
+            if (opt) selectedOptions.push(opt);
+          });
+        } else {
+          // Single-select
+          const opt = point.settings?.radios?.find(opt => opt.value === result.status);
+          if (opt) selectedOptions.push(opt);
+        }
+        
+        selectedOptions.forEach(selectedOption => {
+          if (selectedOption?.settings?.show_trigger) {
+            const targetPointIds = selectedOption.settings.target_point_id || [];
+            targetPointIds.forEach(targetId => {
+              const normalizedTargetId = targetId.toString();
+              if (!triggeredPoints.value.includes(normalizedTargetId)) {
+                triggeredPoints.value.push(normalizedTargetId);
+              }
+            });
+          }
+        });
+      }
+    }
+  });
+};
+
+// Toggle untuk menampilkan/sembunyikan semua point tersembunyi
+const toggleGlobalHidden = () => {
+  showGlobalHidden.value = !showGlobalHidden.value;
+  
+  if (!showGlobalHidden.value) {
+    manuallyShownPoints.value = [];
+  }
+};
+
+// Computed properties
+const hasHiddenPoints = computed(() => {
+  return (props.category.points || []).some(p => p.is_default === false);
+});
+
+// Fungsi untuk mendapatkan transmission labels
+const getTransmissionLabels = (transmissionCodes) => {
+  if (!transmissionCodes || !Array.isArray(transmissionCodes)) return [];
+  return transmissionCodes.map(code => transmissionLabels[code] || code);
+};
+
+// Fungsi utama untuk kompatibilitas kendaraan
+const isFullyCompatible = (point) => {
+  const vehicleConfig = point.settings;
+  
+  // Jika tidak ada config kompatibilitas, langsung return true
+  if (!hasCompatibilitySettings(point)) {
+    return true;
+  }
+
+  const carTransmission = props.car?.transmission;
+  const carFuelType = props.car?.fuel_type;
+  
+  // Check transmission - HANYA jika ada pengaturan transmission
+  if (vehicleConfig.transmission && Array.isArray(vehicleConfig.transmission) && vehicleConfig.transmission.length > 0) {
+    if (carTransmission && !vehicleConfig.transmission.includes(carTransmission)) {
+      return false;
+    }
+  }
+
+  // Check fuel type - HANYA jika ada pengaturan fuel_type
+  if (vehicleConfig.fuel_type && vehicleConfig.fuel_type.trim() !== '') {
+    if (carFuelType && vehicleConfig.fuel_type !== carFuelType) {
+      return false;
+    }
+  }
+
+    // Check vehicle features dari local storage - HANYA jika ada pengaturannya
+    if (vehicleConfig.rear_door) {
+      if (!vehicleFeatures.value || !vehicleFeatures.value.rear_door) {
+        return false;
+      }
+    }
+
+      // LOGIKA OR untuk pick_up dan box:
+  // Jika point memiliki BOTH pick_up dan box settings
+  if (vehicleConfig.pick_up && vehicleConfig.box) {
+    // Cek apakah kendaraan memiliki PICK_UP ATAU BOX
+    if (vehicleFeatures.value) {
+      const hasPickUp = vehicleFeatures.value.pick_up === true;
+      const hasBox = vehicleFeatures.value.box === true;
+      
+      // Jika kendaraan TIDAK memiliki pick_up DAN TIDAK memiliki box
+      if (!hasPickUp && !hasBox) {
+        return false;
+      }
+      // Jika kendaraan memiliki salah satu atau keduanya, lanjutkan pengecekan
+    } else {
+      return false; // vehicleFeatures tidak ada
+    }
+  } 
+  // Jika hanya pick_up saja
+  else if (vehicleConfig.pick_up) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.pick_up) {
+      return false;
+    }
+  } 
+  // Jika hanya box saja
+  else if (vehicleConfig.box) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.box) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// Cek apakah point memiliki pengaturan kompatibilitas
+const hasCompatibilitySettings = (point) => {
+  const settings = point.settings;
+  return !!(
+    (settings?.transmission && Array.isArray(settings.transmission) && settings.transmission.length > 0) ||
+    (settings?.fuel_type && settings.fuel_type.trim() !== '') ||
+    settings?.rear_door ||
+    settings?.pick_up ||
+    settings?.box
+  );
+};
+
+// Fungsi untuk mendapatkan semua target MenuPoint.id dari sebuah point
+const getAllTargetPointIds = (point) => {
+  const targetIds = [];
+  const settings = point.settings;
+  
+  if (settings?.radios) {
+    settings.radios.forEach(radio => {
+      if (radio.settings?.show_trigger && radio.settings.target_point_id) {
+        const normalizedIds = radio.settings.target_point_id.map(id => id.toString());
+        targetIds.push(...normalizedIds);
+      }
+    });
+  }
+  
+  return [...new Set(targetIds)];
+};
+
+// Handler untuk menangani trigger langsung dari component
+const handleDirectTrigger = (event) => {
+  const { pointId, value, option } = event;
+  processTriggerLogic(pointId, value);
+};
+
+// Handler untuk update dengan trigger logic
+const handleTriggerUpdate = (inspectionPointId, value, type) => {
+  // Pertama, update result seperti biasa
+  updateResult(inspectionPointId, value, type);
+  
+  // Kemudian, proses trigger logic
+  processTriggerLogic(inspectionPointId, value);
+};
+
+// Proses trigger logic setelah value diupdate
+const processTriggerLogic = (inspectionPointId, value) => {
+  // Cari point berdasarkan inspectionPointId
+  const point = props.category.points.find(p => p.inspection_point?.id === inspectionPointId);
+  if (!point) return;
+  
+  const menuPointId = point.id; // MenuPoint.id
+  const normalizedMenuPointId = menuPointId.toString();
+  
+  // Reset semua target points dari point ini sebelum memproses yang baru
+  const allTargetIds = getAllTargetPointIds(point);
+  
+  // Hapus dulu semua target points dari triggeredPoints
+  allTargetIds.forEach(targetId => {
+    const normalizedTargetId = targetId.toString();
+    const index = triggeredPoints.value.indexOf(normalizedTargetId);
+    if (index > -1) {
+      triggeredPoints.value.splice(index, 1);
+    }
+  });
+  
+  // Cari option yang dipilih
+  let selectedOptions = [];
+  
+  if (Array.isArray(value)) {
+    // Untuk multi-select, cari semua option yang dipilih
+    value.forEach(val => {
+      const opt = point.settings?.radios?.find(opt => opt.value === val);
+      if (opt) selectedOptions.push(opt);
+    });
+  } else {
+    // Untuk single-select
+    const opt = point.settings?.radios?.find(opt => opt.value === value);
+    if (opt) selectedOptions.push(opt);
+  }
+  
+  // Process each selected option
+  selectedOptions.forEach(selectedOption => {
+    if (selectedOption?.settings?.show_trigger) {
+      const targetPointIds = selectedOption.settings.target_point_id || [];
+      
+      // Tambahkan target points ke triggeredPoints
+      targetPointIds.forEach(targetId => {
+        const normalizedTargetId = targetId.toString();
+        if (!triggeredPoints.value.includes(normalizedTargetId)) {
+          triggeredPoints.value.push(normalizedTargetId);
+        }
+      });
+    }
+  });
+  
+  // Emit event bahwa ada perubahan pada triggered points
+  emit('triggerPointsChanged', {
+    pointId: normalizedMenuPointId,
+    targetPointIds: selectedOptions.flatMap(opt => opt.settings?.target_point_id || []),
+    action: 'update'
+  });
+};
+
+// Tampilkan info kompatibilitas
+const showCompatibilityInfo = (point) => {
+  return hasCompatibilitySettings(point) && (showGlobalHidden.value || isFullyCompatible(point));
+};
+
+// Fungsi untuk mengecek apakah point harus ditampilkan berdasarkan trigger
+const shouldShowPointBasedOnTrigger = (point) => {
+  const menuPointId = point.id; // MenuPoint.id
+  if (!menuPointId) return true;
+  
+  const normalizedMenuPointId = menuPointId.toString();
+  
+  // Jika point adalah point terpicu (is_triggered: true)
+  if (point.settings?.is_triggered) {
+    // Cek apakah sudah dipicu
+    const isTriggered = triggeredPoints.value.includes(normalizedMenuPointId);
+    return isTriggered;
+  }
+  
+  // Jika bukan point terpicu, selalu tampilkan
+  return true;
+};
+
+/**
+ * FUNGSI UTAMA: Gabungkan logika lama dengan filter kompatibilitas dan trigger
+ */
+const renderedItems = computed(() => {
+  const points = props.category.points || [];
+  const itemsToRender = [];
+  let hiddenGroup = [];
+
+  // KONDISI 1: Jika toggle global aktif (Tampilkan Semua), tampilkan semua poin
+  if (showGlobalHidden.value) {
+    if (props.category.isDamageMenu) {
+      return points.filter(p => p.is_default || hasPointData(p.id) || showGlobalHidden.value);
+    }
+    return points; 
+  }
+  
+  // KONDISI 2: Jika damage menu non-global (gunakan logika lama)
+  if (props.category.isDamageMenu) {
+    return points.filter(point => {
+      const menuPointId = point.id;
+      return hasPointData(menuPointId) || point.is_default || manuallyShownPoints.value.includes(menuPointId);
+    });
+  }
+
+  // KONDISI 3: Logika inline untuk non-damage menu dengan GABUNGAN filter
+  points.forEach((point) => {
+    const menuPointId = point.id; // MenuPoint ID
+    const hasData = hasPointData(menuPointId);
+    const isShownManually = manuallyShownPoints.value.includes(menuPointId);
+    
+    // LOGIKA BARU: Filter berdasarkan kompatibilitas
+    const shouldCheckCompatibility = hasCompatibilitySettings(point);
+    const isCompatible = !shouldCheckCompatibility || isFullyCompatible(point);
+    
+    // LOGIKA TRIGGER
+    const shouldShowByTrigger = shouldShowPointBasedOnTrigger(point);
+
+    // Untuk point dengan is_triggered: true
+    if (point.settings?.is_triggered) {
+      if (shouldShowByTrigger) {
+        // Point terpicu yang sudah aktif: Tampilkan jika ada data atau default
+        const isVisible = (point.is_default || hasData || isShownManually) && isCompatible;
+        
+        if (isVisible) {
+          itemsToRender.push(point);
+        }
+      }
+      return;
+    }
+    
+    // Untuk point biasa (non-triggered)
+    const isVisible = (point.is_default || hasData || isShownManually) && isCompatible;
+
+    if (isVisible) {
+      if (hiddenGroup.length > 0) {
+        itemsToRender.push({
+          is_link: true,
+          count: hiddenGroup.length,
+          hiddenIds: hiddenGroup.map(p => p.id), // Gunakan MenuPoint.id
+        });
+        
+        hiddenGroup.forEach(hiddenPoint => {
+          if (manuallyShownPoints.value.includes(hiddenPoint.id)) {
+            itemsToRender.push(hiddenPoint);
+          }
+        });
+        
+        hiddenGroup = []; 
+      }
+      itemsToRender.push(point);
+    } else {
+      // Hanya masukkan ke hidden group jika compatible DAN bukan point terpicu
+      if (isCompatible && !point.settings?.is_triggered) {
+        hiddenGroup.push(point);
+      }
+    }
+  });
+
+  // Setelah loop selesai, jika masih ada hiddenGroup yang tersisa di akhir
+  if (hiddenGroup.length > 0) {
+    itemsToRender.push({
+      is_link: true,
+      count: hiddenGroup.length,
+      hiddenIds: hiddenGroup.map(p => p.id), // Gunakan MenuPoint.id
+    });
+    
+    hiddenGroup.forEach(hiddenPoint => {
+      if (manuallyShownPoints.value.includes(hiddenPoint.id)) {
+        itemsToRender.push(hiddenPoint);
+      }
+    });
+  }
+  
+  return itemsToRender;
+});
+
+// Fungsi untuk menampilkan point tersembunyi
+const revealHiddenPoints = (hiddenIds) => {
+  showGlobalHidden.value = false; 
+
+  hiddenIds.forEach(id => {
+    if (!manuallyShownPoints.value.includes(id)) {
+      manuallyShownPoints.value.push(id);
+    }
+  });
+};
+
+// Cek apakah point sudah memiliki data
+const hasPointData = (menuPointId) => {
+  if (!menuPointId) {
+    return false;
+  }
+  
+  // Cari inspectionPointId berdasarkan menuPointId
+  const point = props.category.points.find(p => p.id === menuPointId);
+  if (!point || !point.inspection_point?.id) return false;
+  
+  const inspectionPointId = point.inspection_point.id;
+  
+  const hasServerResult = page.props.existingResults[inspectionPointId] !== undefined;
+  const hasServerImages = page.props.existingImages[inspectionPointId] && page.props.existingImages[inspectionPointId].length > 0;
+  
+  const hasLocalResult = props.form.results[inspectionPointId] && 
+                       (props.form.results[inspectionPointId].status || props.form.results[inspectionPointId].note);
+  
+  const hasLocalImages = props.form.images[inspectionPointId] && props.form.images[inspectionPointId].length > 0;
+
+  return hasServerResult || hasServerImages || hasLocalResult || hasLocalImages;
+};
+
+// Default radio options
+const defaultRadioOptions = [
+  { value: 'good', label: 'Good' },
+  { value: 'bad', label: 'Bad' },
+  { value: 'na', label: 'N/A' }
+];
+
+// Cek apakah point sudah lengkap dengan semua pengaturan
+const isPointComplete = (menuPoint) => {
+  const inspectionPointId = menuPoint.inspection_point?.id;
+  const result = props.form.results[inspectionPointId];
+  const images = props.form.images[inspectionPointId] || [];
+  
+  // Jika point wajib diisi (settings.is_required = true)
+  const isRequired = menuPoint.settings?.is_required !== false;
+  const isMultiSelection = Array.isArray(result?.status);
+  
+  // Jika tidak wajib diisi, selalu return true
+  if (!isRequired) {
+    return true;
+  }
+
+  if (!result) return false;
+  
+  const settings = menuPoint.settings || {};
+  const inputType = menuPoint.input_type;
+  
+  switch(inputType) {
+    case 'text':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      if (settings.min_length) {
+        const minLength = parseInt(settings.min_length);
+        if (result.note.trim().length < minLength) return false;
+      }
+      
+      if (settings.max_length) {
+        const maxLength = parseInt(settings.max_length);
+        if (result.note.trim().length > maxLength) return false;
+      }
+      
+      return true;
+
+    case 'number':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const numValue = parseFloat(result.note);
+      if (isNaN(numValue)) return false;
+      
+      if (settings.min !== undefined) {
+        const min = parseFloat(settings.min);
+        if (numValue < min) return false;
+      }
+      
+      if (settings.max !== undefined) {
+        const max = parseFloat(settings.max);
+        if (numValue > max) return false;
+      }
+      
+      if (settings.step) {
+        const step = parseFloat(settings.step);
+        const remainder = (numValue - (settings.min || 0)) % step;
+        if (Math.abs(remainder) > 0.00001 && Math.abs(remainder - step) > 0.00001) {
+          return false;
+        }
+      }
+      
+      return true;
+
+    case 'textarea':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      if (settings.min_length) {
+        const minLength = parseInt(settings.min_length);
+        if (result.note.trim().length < minLength) return false;
+      }
+      
+      if (settings.max_length) {
+        const maxLength = parseInt(settings.max_length);
+        if (result.note.trim().length > maxLength) return false;
+      }
+      
+      return true;
+
+    case 'account':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const cleanValue = result.note.replace(/[^0-9]/g, '');
+      const numAccount = parseFloat(cleanValue);
+      if (isNaN(numAccount)) return false;
+      
+      if (settings.min_value) {
+        const minValue = parseFloat(settings.min_value);
+        if (numAccount < minValue) return false;
+      }
+      
+      if (settings.max_value) {
+        const maxValue = parseFloat(settings.max_value);
+        if (numAccount > maxValue) return false;
+      }
+      
+      return true;
+
+    case 'date':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const selectedDate = new Date(result.note);
+      
+      if (settings.min_date) {
+        const minDate = new Date(settings.min_date);
+        if (selectedDate < minDate) return false;
+      }
+      
+      if (settings.max_date) {
+        const maxDate = new Date(settings.max_date);
+        if (selectedDate > maxDate) return false;
+      }
+      
+      return true;
+
+    case 'radio':
+      if (!result.status) return false;
+      
+      if (isMultiSelection) {
+        if (result.status.length === 0) return false;
+        
+        let hasRequiredTextarea = false;
+        let hasRequiredImage = false;
+        
+        for (const selectedValue of result.status) {
+          const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+          if (!selectedOption) continue;
+          
+          if (selectedOption.settings?.show_textarea && 
+              selectedOption.settings.textarea_is_required !== false) {
+            hasRequiredTextarea = true;
+          }
+          
+          if (selectedOption.settings?.show_image_upload && 
+              selectedOption.settings.image_is_required !== false) {
+            hasRequiredImage = true;
+          }
+        }
+        
+        if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
+          return false;
+        }
+        
+        if (result.note && result.note.trim() !== '') {
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+            
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        if (hasRequiredImage && (!images || images.length === 0)) {
+          return false;
+        }
+        
+        if (images && images.length > 0) {
+          let maxFiles = 1;
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (selectedOption?.settings?.show_image_upload && selectedOption.settings.max_files) {
+              maxFiles = Math.max(maxFiles, parseInt(selectedOption.settings.max_files));
+            }
+          }
+          
+          if (images.length > maxFiles) return false;
+        }
+        
+        return true;
+        
+      } else {
+        const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+        if (!selectedOption) return false;
+        
+        if (selectedOption.settings?.show_textarea) {
+          if (selectedOption.settings.textarea_is_required !== false) {
+            if (!result.note || result.note.trim() === '') {
+              return false;
+            }
+          }
+          
+          if (result.note && result.note.trim() !== '') {
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        if (selectedOption.settings?.show_image_upload) {
+          if (selectedOption.settings.image_is_required !== false) {
+            if (!images || images.length === 0) {
+              return false;
+            }
+          }
+          
+          if (images && images.length > 0 && selectedOption.settings.max_files) {
+            const maxFiles = parseInt(selectedOption.settings.max_files);
+            if (images.length > maxFiles) return false;
+          }
+        }
+        
+        return true;
+      }
+
+    case 'select':
+      if (!result.status) return false;
+      
+      const selectedOptionSelect = settings.radios?.find(opt => opt.value === result.status);
+      if (!selectedOptionSelect) return false;
+      
+      if (selectedOptionSelect.settings?.show_textarea) {
+        if (selectedOptionSelect.settings.textarea_is_required !== false) {
+          if (!result.note || result.note.trim() === '') {
+            return false;
+          }
+        }
+        
+        if (result.note && result.note.trim() !== '') {
+          if (selectedOptionSelect.settings.min_length) {
+            const minLength = parseInt(selectedOptionSelect.settings.min_length);
+            if (result.note.trim().length < minLength) return false;
+          }
+          if (selectedOptionSelect.settings.max_length) {
+            const maxLength = parseInt(selectedOptionSelect.settings.max_length);
+            if (result.note.trim().length > maxLength) return false;
+          }
+        }
+      }
+      
+      if (selectedOptionSelect.settings?.show_image_upload) {
+        if (selectedOptionSelect.settings.image_is_required !== false) {
+          if (!images || images.length === 0) {
+            return false;
+          }
+        }
+        
+        if (images && images.length > 0 && selectedOptionSelect.settings.max_files) {
+          const maxFiles = parseInt(selectedOptionSelect.settings.max_files);
+          if (images.length > maxFiles) return false;
+        }
+      }
+      
+      return true;
+
+    case 'imageTOradio':
+      if (!images || images.length === 0) return false;
+      
+      if (!result.status) return false;
+      
+      if (settings.max_files) {
+        const maxFiles = parseInt(settings.max_files);
+        if (images.length > maxFiles) return false;
+      }
+      
+      if (isMultiSelection) {
+        if (result.status.length === 0) return false;
+        
+        let hasRequiredTextarea = false;
+        
+        for (const selectedValue of result.status) {
+          const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+          if (!selectedOption) continue;
+          
+          if (selectedOption.settings?.show_textarea && 
+              selectedOption.settings.textarea_is_required !== false) {
+            hasRequiredTextarea = true;
+          }
+        }
+        
+        if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
+          return false;
+        }
+        
+        if (result.note && result.note.trim() !== '') {
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+            
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        return true;
+        
+      } else {
+        const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+        if (!selectedOption) return false;
+        
+        if (selectedOption.settings?.show_textarea) {
+          if (selectedOption.settings.textarea_is_required !== false) {
+            if (!result.note || result.note.trim() === '') {
+              return false;
+            }
+          }
+          
+          if (result.note && result.note.trim() !== '') {
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        return true;
+      }
+
+    case 'image':
+      if (images.length === 0) return false;
+      
+      if (settings.max_files) {
+        const maxFiles = parseInt(settings.max_files);
+        if (images.length > maxFiles) return false;
+      }
+      
+      return true;
+
+    default:
+      return !!(result.status || result.note?.trim());
+  }
+};  
+
+// Event handlers
+const updateResult = (inspectionPointId, value, type) => {
+  emit('updateResult', { pointId: inspectionPointId, type, value });
+};
+
+const saveResult = (inspectionPointId) => {
+  console.log('Save result for point:', inspectionPointId);
+};
+
+const removeImage = (pointId, imageIndex) => {
+  emit('removeImage', { pointId, imageIndex });
+};
+
+const HapusPoint = (inspectionPointId) => {
+  emit("hapusPoint", inspectionPointId);
+};
+
+// Watchers untuk perubahan data
+watch(() => props.form.results, (newResults) => {
+  // Re-initialize triggered points ketika results berubah
+  initializeTriggeredPoints();
+}, { deep: true });
+
+watch(() => props.form.images, (newImages) => {
+  // Handle perubahan images jika diperlukan
+}, { deep: true });
+
+// Watch untuk perubahan data kendaraan
+watch(() => props.car, (newCar) => {
+  console.log('Car data updated:', newCar);
+}, { deep: true });
+
+// Watch untuk perubahan vehicle features
+watch(vehicleFeatures, (newFeatures) => {
+  console.log('Vehicle features updated:', newFeatures);
+}, { deep: true });
+</script>

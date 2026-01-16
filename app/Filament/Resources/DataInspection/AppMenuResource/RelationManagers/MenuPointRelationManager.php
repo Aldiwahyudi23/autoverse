@@ -116,6 +116,68 @@ public function updatedSelectAll($value)
                                 ->label('Wajib Diisi')
                                 ->default(true)
                                 ->columnSpanFull(),
+
+                            // 👇 NEW: Toggle untuk menandai apakah point ini dipicu (conditional)
+                            Forms\Components\Toggle::make('settings.is_triggered')
+                                ->label('Point ini Dipicu oleh Point Lain')
+                                ->default(false)
+                                ->reactive()
+                                ->helperText('Aktifkan jika point ini muncul hanya ketika dipicu oleh point lain')
+                                ->columnSpanFull(),
+
+                            // 👇 NEW: Field untuk parent point (hanya muncul jika is_triggered = true)
+                            Forms\Components\Select::make('settings.parent_point_id')
+                                ->label('Parent Point (Pemicu)')
+                                ->options(function ($get, $state, $record) {
+                                    if (!$record) {
+                                        return [];
+                                    }
+
+                                    $recordId = $record->id;
+                                    
+                                    // Cari di semua tempat yang mungkin memiliki target_point_id
+                                    $points = MenuPoint::query()
+                                        ->with('inspection_point')
+                                        ->where(function ($query) use ($recordId) {
+                                            // 1. Cari di level pertama settings->target_point_id
+                                            $query->where(function ($subQuery) use ($recordId) {
+                                                $subQuery->whereJsonContains('settings->target_point_id', (string) $recordId)
+                                                        ->orWhereJsonContains('settings->target_point_id', (int) $recordId);
+                                            })
+                                            // 2. Cari di dalam settings->radios[].settings->target_point_id
+                                            ->orWhere(function ($subQuery) use ($recordId) {
+                                                // Untuk MySQL 8.0+ dengan JSON_TABLE
+                                                $subQuery->whereRaw("EXISTS (
+                                                    SELECT 1 
+                                                    FROM JSON_TABLE(
+                                                        JSON_EXTRACT(settings, '$.radios'),
+                                                        '$[*]' COLUMNS(
+                                                            settings JSON PATH '$.settings'
+                                                        )
+                                                    ) AS radios
+                                                    WHERE JSON_EXTRACT(radios.settings, '$.target_point_id') LIKE ?
+                                                    OR JSON_CONTAINS(JSON_EXTRACT(radios.settings, '$.target_point_id'), ?)
+                                                )", ["%\"$recordId\"%", "\"$recordId\""]);
+                                            });
+                                        })
+                                        ->where('id', '!=', $recordId)
+                                        ->get()
+                                        ->mapWithKeys(function ($menuPoint) {
+                                            $pointName = $menuPoint->inspection_point?->name ?? 'Tanpa Nama';
+                                            $inputType = $menuPoint->input_type;
+                                            return [$menuPoint->id => "{$pointName} ({$inputType})"];
+                                        })
+                                        ->toArray();
+
+                                    return $points;
+                                })
+                                ->searchable()
+                                ->multiple()
+                                ->columnSpanFull()
+                                ->helperText('Point-point yang memicu point ini muncul')
+                                ->visible(fn (callable $get) => $get('settings.is_triggered') === true)
+                                ->reactive()
+                                ->disabled(fn ($get) => !$get('settings.is_triggered')),
                         ];
 
                         // Settings for number input
@@ -359,6 +421,12 @@ public function updatedSelectAll($value)
                                                             ->label('Tampilkan Textarea')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.textarea_is_required')
+                                                            ->label('Textarea Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_textarea')),
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -451,6 +519,37 @@ public function updatedSelectAll($value)
                                                         ->collapsible()
                                                         ->collapsed(fn (callable $get) => !$get('settings.enable_damage')),
 
+                                                 // 👇 SECTION TRIGGERS/PEMICU (SIMPLE VERSION)
+                                                Forms\Components\Section::make('Triggers / Pemicu')
+                                                    ->schema([
+                                                        Forms\Components\Toggle::make('settings.show_trigger')
+                                                            ->label('Aktifkan Trigger')
+                                                            ->default(false)
+                                                            ->reactive()
+                                                            ->helperText('Jika aktif, opsi ini dapat memicu point lain'),
+                                                        
+
+    Forms\Components\Select::make('settings.target_point_id')
+    ->label('Point yang Dipicu')
+    ->options(
+        MenuPoint::with('inspection_point')
+            ->get()
+            ->mapWithKeys(fn ($menuPoint) => [
+                $menuPoint->id => $menuPoint->inspection_point?->name ?? 'Tanpa Nama',
+            ])
+            ->toArray()
+    )
+    ->searchable()
+    ->multiple() // 👈 TAMBAHKAN INI untuk pilihan multiple
+    ->columnSpanFull()
+    ->helperText('Pilih point yang akan muncul ketika opsi ini dipilih')
+    ->visible(fn (callable $get) => $get('settings.show_trigger') === true)
+    ->reactive(),
+
+                                                    ])
+                                                    ->collapsible()
+                                                    ->collapsed(fn (callable $get) => !$get('settings.show_trigger')),
+
                                             ])
                                             ->defaultItems(2)
                                             ->createItemButtonLabel('Tambah Opsi Radio') // Tombol tambah di bawah
@@ -485,6 +584,12 @@ public function updatedSelectAll($value)
                                                             ->label('Tampilkan Textarea')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.textarea_is_required')
+                                                            ->label('Textarea Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_textarea')),
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -513,6 +618,13 @@ public function updatedSelectAll($value)
                                                             ->label('Tampilkan Upload Gambar')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.image_is_required')
+                                                            ->label('Gambar Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_image_upload')),
+
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -565,7 +677,6 @@ public function updatedSelectAll($value)
                                                     ->collapsible()
                                                     ->collapsed(fn (callable $get) => !$get('settings.show_image_upload')),
                                                 
-                                            // Ganti bagian damage options dengan ini:
                                                 Forms\Components\Section::make('Opsi Kerusakan')
                                                     ->schema([
                                                         Forms\Components\Toggle::make('settings.enable_damage')
@@ -634,6 +745,36 @@ public function updatedSelectAll($value)
                                                     ])
                                                     ->collapsible()
                                                     ->collapsed(fn (callable $get) => !$get('settings.enable_damage')),
+
+                                                   // 👇 SECTION TRIGGERS/PEMICU (SIMPLE VERSION)
+                                                Forms\Components\Section::make('Triggers / Pemicu')
+                                                    ->schema([
+                                                        Forms\Components\Toggle::make('settings.show_trigger')
+                                                            ->label('Aktifkan Trigger')
+                                                            ->default(false)
+                                                            ->reactive()
+                                                            ->helperText('Jika aktif, opsi ini dapat memicu point lain'),
+                                                        
+                                                           Forms\Components\Select::make('settings.target_point_id')
+    ->label('Point yang Dipicu')
+    ->options(
+        MenuPoint::with('inspection_point')
+            ->get()
+            ->mapWithKeys(fn ($menuPoint) => [
+                $menuPoint->id => $menuPoint->inspection_point?->name ?? 'Tanpa Nama',
+            ])
+            ->toArray()
+    )
+    ->searchable()
+    ->multiple() // 👈 TAMBAHKAN INI untuk pilihan multiple
+    ->columnSpanFull()
+    ->helperText('Pilih point yang akan muncul ketika opsi ini dipilih')
+    ->visible(fn (callable $get) => $get('settings.show_trigger') === true)
+    ->reactive(),
+                                                    ])
+                                                    ->collapsible()
+                                                    ->collapsed(fn (callable $get) => !$get('settings.show_trigger')),
+
                                             ])
                                             ->defaultItems(2)
                                             ->columnSpanFull()
@@ -976,6 +1117,7 @@ public function updatedSelectAll($value)
                         'multi' => false,
                         'settings' => [
                             'show_textarea' => false,
+                            'textarea_is_required' => true,
                                 'min_length' => 0,
                                 'max_length' => 500,
                                 'placeholder' => 'Masukkan teks di sini',
@@ -990,6 +1132,7 @@ public function updatedSelectAll($value)
                         'multi' => true,
                         'settings' => [
                             'show_textarea' => false,
+                            'textarea_is_required' => true,
                                 'min_length' => 0,
                                 'max_length' => 500,
                                 'placeholder' => 'Masukkan teks di sini',
@@ -1017,10 +1160,12 @@ public function updatedSelectAll($value)
                         'multi' => false,
                         'settings' => [
                             'show_textarea' => false,
+                            'textarea_is_required' => true,
                                 'min_length' => 0,
                                 'max_length' => 500,
                                 'placeholder' => 'Masukkan teks di sini',
                             'show_image_upload' => false,
+                            'image_is_required' => true,
                                 'max_files' => 5,
                                 'max_size' => 2048,
                                 'allowed_types' => ['jpg', 'png', 'jpeg'],
@@ -1038,10 +1183,12 @@ public function updatedSelectAll($value)
                         'multi' => true,
                         'settings' => [
                             'show_textarea' => false,
+                            'textarea_is_required' => true,
                                 'min_length' => 0,
                                 'max_length' => 500,
                                 'placeholder' => 'Masukkan teks di sini',
                             'show_image_upload' => false,
+                            'image_is_required' => true,
                                 'max_files' => 5,
                                 'max_size' => 2048,
                                 'allowed_types' => ['jpg', 'png', 'jpeg'],
@@ -1249,7 +1396,69 @@ Forms\Components\Group::make()
                                             ->label('Wajib Diisi')
                                             ->default(true)
                                             ->columnSpanFull(),
-                                    ];
+
+                                        // 👇 NEW: Toggle untuk menandai apakah point ini dipicu (conditional)
+                                        Forms\Components\Toggle::make('settings.is_triggered')
+                                            ->label('Point ini Dipicu oleh Point Lain')
+                                            ->default(false)
+                                            ->reactive()
+                                            ->helperText('Aktifkan jika point ini muncul hanya ketika dipicu oleh point lain')
+                                            ->columnSpanFull(),
+
+                                        // 👇 NEW: Field untuk parent point (hanya muncul jika is_triggered = true)
+                                        Forms\Components\Select::make('settings.parent_point_id')
+                                            ->label('Parent Point (Pemicu)')
+                                            ->options(function ($get, $state, $record) {
+                                                if (!$record) {
+                                                    return [];
+                                                }
+
+                                                $recordId = $record->id;
+                                                
+                                                // Cari di semua tempat yang mungkin memiliki target_point_id
+                                                $points = MenuPoint::query()
+                                                    ->with('inspection_point')
+                                                    ->where(function ($query) use ($recordId) {
+                                                        // 1. Cari di level pertama settings->target_point_id
+                                                        $query->where(function ($subQuery) use ($recordId) {
+                                                            $subQuery->whereJsonContains('settings->target_point_id', (string) $recordId)
+                                                                    ->orWhereJsonContains('settings->target_point_id', (int) $recordId);
+                                                        })
+                                                        // 2. Cari di dalam settings->radios[].settings->target_point_id
+                                                        ->orWhere(function ($subQuery) use ($recordId) {
+                                                            // Untuk MySQL 8.0+ dengan JSON_TABLE
+                                                            $subQuery->whereRaw("EXISTS (
+                                                                SELECT 1 
+                                                                FROM JSON_TABLE(
+                                                                    JSON_EXTRACT(settings, '$.radios'),
+                                                                    '$[*]' COLUMNS(
+                                                                        settings JSON PATH '$.settings'
+                                                                    )
+                                                                ) AS radios
+                                                                WHERE JSON_EXTRACT(radios.settings, '$.target_point_id') LIKE ?
+                                                                OR JSON_CONTAINS(JSON_EXTRACT(radios.settings, '$.target_point_id'), ?)
+                                                            )", ["%\"$recordId\"%", "\"$recordId\""]);
+                                                        });
+                                                    })
+                                                    ->where('id', '!=', $recordId)
+                                                    ->get()
+                                                    ->mapWithKeys(function ($menuPoint) {
+                                                        $pointName = $menuPoint->inspection_point?->name ?? 'Tanpa Nama';
+                                                        $inputType = $menuPoint->input_type;
+                                                        return [$menuPoint->id => "{$pointName} ({$inputType})"];
+                                                    })
+                                                    ->toArray();
+
+                                                return $points;
+                                            })
+                                            ->searchable()
+                                            ->multiple()
+                                            ->columnSpanFull()
+                                            ->helperText('Point-point yang memicu point ini muncul')
+                                            ->visible(fn (callable $get) => $get('settings.is_triggered') === true)
+                                            ->reactive()
+                                            ->disabled(fn ($get) => !$get('settings.is_triggered')),                    
+                                                ];
 
                                     // Settings for number input
                                     if ($inputType === 'number') {
@@ -1492,6 +1701,13 @@ Forms\Components\Group::make()
                                                             ->label('Tampilkan Textarea')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.textarea_is_required')
+                                                            ->label('Textarea Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_textarea')),
+                                                        
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -1584,6 +1800,37 @@ Forms\Components\Group::make()
                                                         ->collapsible()
                                                         ->collapsed(fn (callable $get) => !$get('settings.enable_damage')),
 
+                                                   // 👇 SECTION TRIGGERS/PEMICU (SIMPLE VERSION)
+                                                Forms\Components\Section::make('Triggers / Pemicu')
+                                                    ->schema([
+                                                        Forms\Components\Toggle::make('settings.show_trigger')
+                                                            ->label('Aktifkan Trigger')
+                                                            ->default(false)
+                                                            ->reactive()
+                                                            ->helperText('Jika aktif, opsi ini dapat memicu point lain'),
+                                                        
+                                                Forms\Components\Select::make('settings.target_point_id')
+                                                    ->label('Point yang Dipicu')
+                                                    ->options(
+                                                        MenuPoint::with('inspection_point')
+                                                            ->get()
+                                                            ->mapWithKeys(fn ($menuPoint) => [
+                                                                $menuPoint->id => $menuPoint->inspection_point?->name ?? 'Tanpa Nama',
+                                                            ])
+                                                            ->toArray()
+                                                    )
+                                                    ->searchable()
+                                                    ->multiple() // 👈 TAMBAHKAN INI untuk pilihan multiple
+                                                    ->columnSpanFull()
+                                                    ->helperText('Pilih point yang akan muncul ketika opsi ini dipilih')
+                                                    ->visible(fn (callable $get) => $get('settings.show_trigger') === true)
+                                                    ->reactive(),
+                                                        
+                                                    ])
+                                                    ->collapsible()
+                                                    ->collapsed(fn (callable $get) => !$get('settings.show_trigger')),
+
+
                                             ])
                                             ->defaultItems(2)
                                             ->createItemButtonLabel('Tambah Opsi Radio') // Tombol tambah di bawah
@@ -1618,6 +1865,13 @@ Forms\Components\Group::make()
                                                             ->label('Tampilkan Textarea')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.textarea_is_required')
+                                                            ->label('Textarea Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_textarea')),
+                                                        
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -1646,6 +1900,13 @@ Forms\Components\Group::make()
                                                             ->label('Tampilkan Upload Gambar')
                                                             ->default(false)
                                                             ->reactive(),
+
+                                                        Forms\Components\Toggle::make('settings.image_is_required')
+                                                            ->label('Gambar Wajib Diisi')
+                                                            ->default(true)
+                                                             ->helperText('Jika aktif, wajib di isi')
+                                                            ->visible(fn (callable $get) => $get('settings.show_image_upload')),
+
                                                         
                                                         Forms\Components\Grid::make(3)
                                                             ->schema([
@@ -1698,7 +1959,6 @@ Forms\Components\Group::make()
                                                     ->collapsible()
                                                     ->collapsed(fn (callable $get) => !$get('settings.show_image_upload')),
                                                 
-                                            // Ganti bagian damage options dengan ini:
                                                 Forms\Components\Section::make('Opsi Kerusakan')
                                                     ->schema([
                                                         Forms\Components\Toggle::make('settings.enable_damage')
@@ -1767,6 +2027,37 @@ Forms\Components\Group::make()
                                                     ])
                                                     ->collapsible()
                                                     ->collapsed(fn (callable $get) => !$get('settings.enable_damage')),
+
+                                                   // 👇 SECTION TRIGGERS/PEMICU (SIMPLE VERSION)
+                                                Forms\Components\Section::make('Triggers / Pemicu')
+                                                    ->schema([
+                                                        Forms\Components\Toggle::make('settings.show_trigger')
+                                                            ->label('Aktifkan Trigger')
+                                                            ->default(false)
+                                                            ->reactive()
+                                                            ->helperText('Jika aktif, opsi ini dapat memicu point lain'),
+                                                        
+                                                Forms\Components\Select::make('settings.target_point_id')
+                                                    ->label('Point yang Dipicu')
+                                                    ->options(
+                                                        MenuPoint::with('inspection_point')
+                                                            ->get()
+                                                            ->mapWithKeys(fn ($menuPoint) => [
+                                                                $menuPoint->id => $menuPoint->inspection_point?->name ?? 'Tanpa Nama',
+                                                            ])
+                                                            ->toArray()
+                                                    )
+                                                    ->searchable()
+                                                    ->multiple() // 👈 TAMBAHKAN INI untuk pilihan multiple
+                                                    ->columnSpanFull()
+                                                    ->helperText('Pilih point yang akan muncul ketika opsi ini dipilih')
+                                                    ->visible(fn (callable $get) => $get('settings.show_trigger') === true)
+                                                    ->reactive(),
+                                                        
+                                                    ])
+                                                    ->collapsible()
+                                                    ->collapsed(fn (callable $get) => !$get('settings.show_trigger')),
+
                                             ])
                                             ->defaultItems(2)
                                             ->columnSpanFull()

@@ -8,6 +8,7 @@ use App\Models\DataCar\CarDetail;
 use App\Models\DataCar\CarModel;
 use App\Models\DataCar\CarType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -53,7 +54,17 @@ class CarController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $car = CarDetail::with(['brand', 'model', 'type'])->find($id);
+        
+        if (!$car) {
+            return response()->json([
+                'error' => 'Car not found'
+            ], 404);
+        }
+        
+        return response()->json([
+            'data' => $car
+        ]);
     }
 
     /**
@@ -383,6 +394,41 @@ public function storeCarDetail(Request $request)
     }
 }
 
-
-
+    public function search(Request $request)
+    {
+        $query = $request->input('q', '');
+        $limit = $request->input('limit', 10);
+        
+        if (strlen($query) < 2) {
+            return response()->json([
+                'data' => [],
+                'total' => 0
+            ]);
+        }
+        
+        // Search cars with eager loading
+        $cars = CarDetail::query()
+            ->with(['brand', 'model', 'type'])
+            ->where(function ($q) use ($query) {
+                $q->whereHas('brand', function ($brandQuery) use ($query) {
+                    $brandQuery->where('name', 'LIKE', "%{$query}%");
+                })
+                ->orWhereHas('model', function ($modelQuery) use ($query) {
+                    $modelQuery->where('name', 'LIKE', "%{$query}%");
+                })
+                ->orWhereHas('type', function ($typeQuery) use ($query) {
+                    $typeQuery->where('name', 'LIKE', "%{$query}%");
+                })
+                ->orWhere('year', 'LIKE', "%{$query}%")
+                ->orWhere('transmission', 'LIKE', "%{$query}%")
+                ->orWhere('fuel_type', 'LIKE', "%{$query}%");
+            })
+            ->limit($limit)
+            ->get();
+        
+        return response()->json([
+            'data' => $cars,
+            'total' => $cars->count()
+        ]);
+    }
 }

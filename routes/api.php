@@ -29,6 +29,9 @@ Route::post('/cars/store-model', [CarController::class, 'storeModel']);
 Route::post('/cars/store-type', [CarController::class, 'storeType']);
 Route::post('/cars/store-car-detail', [CarController::class, 'storeCarDetail']);
 
+    // Car search endpoints
+Route::get('/api/cars/search', [CarController::class, 'search']);
+Route::get('/api/cars/{id}', [CarController::class, 'show']);
 Route::get('/api/cars/{carId}/images', [CarController::class, 'getCarImages']);
 
 

@@ -21,6 +21,7 @@ class TransactionDistribution extends Model
         'is_released',
         'released_at',
         'released_by',
+        'withdrawal_id',
     ];
 
     /**
@@ -50,4 +51,10 @@ class TransactionDistribution extends Model
     {
         return $this->belongsTo(Region::class);
     }
+
+    public function withdrawal()
+    {
+        return $this->belongsTo(Withdrawal::class);
+    }
+
 }

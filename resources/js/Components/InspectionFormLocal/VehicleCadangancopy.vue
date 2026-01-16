@@ -103,7 +103,7 @@
                     
                     <div 
                         v-if="showSuggestions" 
-                        class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                        class="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
                     >
                         <div v-if="filteredCars.length > 0">
                             <div 

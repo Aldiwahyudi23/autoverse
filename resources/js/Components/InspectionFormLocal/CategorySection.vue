@@ -100,10 +100,10 @@
                         Pintu Belakang
                       </div>
                       <div v-if="item.settings?.pick_up">
-                        Tipe Pick Up
+                        Tipe Pick Up,
                       </div>
                       <div v-if="item.settings?.box">
-                        Memiliki Box
+                        Tipe Box
                       </div>
                 </div>
               </div>
@@ -187,7 +187,7 @@
             :images="form.images[item.inspection_point?.id]"
             :required="item.settings?.is_required"
             :point-id="item.inspection_point?.id"
-            :point="item.inspection_point"
+            :point="item"
             :inspection-id="inspectionId" 
             :settings="item.settings"
             :point-name="item.inspection_point?.name"
@@ -195,7 +195,8 @@
             :selected-point="item.inspection_point ?? null"
             :options="item.settings?.radios || defaultRadioOptions"
             :error="form.errors[`results.${item.inspection_point?.id}.status`]"
-            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'status')"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event, 'status')"
+            @trigger-change="handleDirectTrigger($event)"
             @update:notes="val => form.results[item.inspection_point?.id].note = val"
             @update:images="val => form.images[item.inspection_point?.id] = val"
             @save="saveResult(item.inspection_point?.id)"
@@ -217,7 +218,8 @@
             :selected-point="item.inspection_point ?? null"
             :options="item.settings?.radios || defaultRadioOptions"
             :error="form.errors[`results.${item.inspection_point?.id}.status`]"
-            @update:modelValue="updateResult(item.inspection_point?.id, $event,'status')"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event,'status')"
+            @trigger-change="handleDirectTrigger($event)"
             @update:notes="val => form.results[item.inspection_point?.id].note = val"
             @update:images="val => form.images[item.inspection_point?.id] = val"
             @save="saveResult(item.inspection_point?.id)"
@@ -242,7 +244,8 @@
             v-model="form.results[item.inspection_point?.id].status"
             :required="item.settings?.is_required"
             :error="form.errors[`results.${item.inspection_point?.id}.status`]"
-            @update:modelValue="updateResult(item.inspection_point?.id, $event, 'status')"
+            @update:modelValue="handleTriggerUpdate(item.inspection_point?.id, $event, 'status')"
+            @trigger-change="handleDirectTrigger($event)"
             @save="saveResult(item.inspection_point?.id)"
           />
 
@@ -279,7 +282,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { onMounted, onUnmounted, computed, ref, watch, inject, provide } from 'vue';
 import { usePage } from '@inertiajs/vue3';
@@ -301,10 +303,11 @@ const props = defineProps({
   head: Object,
   inspectionId: String,
   selectedPoint: Object,
-  car: Object, // Data kendaraan dari parent
+  car: Object,
+  triggeredPoints: Array,
 });
 
-const emit = defineEmits(['updateResult', 'removeImage', 'hapusPoint']);
+const emit = defineEmits(['updateResult', 'removeImage', 'hapusPoint', 'triggerPointsChanged']);
 
 // Inject dari parent untuk local storage features
 const vehicleFeatures = inject('vehicleFeatures', ref(null));
@@ -315,10 +318,13 @@ vehicleFeatures.value = JSON.parse(localStorage.getItem('vehicle_features') || '
 provide('vehicleFeatures', vehicleFeatures);
 
 // State untuk tampilan
-const showGlobalHidden = ref(false); 
-const manuallyShownPoints = ref([]); 
+const showGlobalHidden = ref(false);
+const manuallyShownPoints = ref([]);
 const isHeaderVisible = ref(true);
 const categoryHeader = ref(null);
+
+// Use triggeredPoints from props
+const triggeredPoints = computed(() => props.triggeredPoints || []);
 
 const page = usePage();
 
@@ -349,7 +355,59 @@ onMounted(() => {
   onUnmounted(() => {
     if (categoryHeader.value) observer.unobserve(categoryHeader.value);
   });
+
+  // Inisialisasi triggered points dari data yang sudah ada
+  initializeTriggeredPoints();
 });
+
+// Fungsi untuk menginisialisasi triggered points dari data yang sudah ada
+const initializeTriggeredPoints = () => {
+  const points = props.category.points || [];
+  
+  // Reset triggered points terlebih dahulu
+  triggeredPoints.value = [];
+  
+  points.forEach(point => {
+    const menuPointId = point.id; // MenuPoint.id
+    if (!menuPointId) return;
+    
+    // Normalize menuPointId ke string
+    const normalizedMenuPointId = menuPointId.toString();
+    
+    // Jika point ini adalah point pemicu (parent), cek apakah ada pilihan yang aktif
+    if (point.input_type === 'radio' || point.input_type === 'imageTOradio' || point.input_type === 'select') {
+      const result = props.form.results[point.inspection_point?.id];
+      if (result && result.status) {
+        // Cek apakah option yang dipilih memiliki show_trigger: true
+        let selectedOptions = [];
+        
+        if (Array.isArray(result.status)) {
+          // Multi-select
+          result.status.forEach(val => {
+            const opt = point.settings?.radios?.find(opt => opt.value === val);
+            if (opt) selectedOptions.push(opt);
+          });
+        } else {
+          // Single-select
+          const opt = point.settings?.radios?.find(opt => opt.value === result.status);
+          if (opt) selectedOptions.push(opt);
+        }
+        
+        selectedOptions.forEach(selectedOption => {
+          if (selectedOption?.settings?.show_trigger) {
+            const targetPointIds = selectedOption.settings.target_point_id || [];
+            targetPointIds.forEach(targetId => {
+              const normalizedTargetId = targetId.toString();
+              if (!triggeredPoints.value.includes(normalizedTargetId)) {
+                triggeredPoints.value.push(normalizedTargetId);
+              }
+            });
+          }
+        });
+      }
+    }
+  });
+};
 
 // Toggle untuk menampilkan/sembunyikan semua point tersembunyi
 const toggleGlobalHidden = () => {
@@ -404,17 +462,35 @@ const isFullyCompatible = (point) => {
       }
     }
 
-    if (vehicleConfig.pick_up) {
-      if (!vehicleFeatures.value || !vehicleFeatures.value.pick_up) {
+      // LOGIKA OR untuk pick_up dan box:
+  // Jika point memiliki BOTH pick_up dan box settings
+  if (vehicleConfig.pick_up && vehicleConfig.box) {
+    // Cek apakah kendaraan memiliki PICK_UP ATAU BOX
+    if (vehicleFeatures.value) {
+      const hasPickUp = vehicleFeatures.value.pick_up === true;
+      const hasBox = vehicleFeatures.value.box === true;
+      
+      // Jika kendaraan TIDAK memiliki pick_up DAN TIDAK memiliki box
+      if (!hasPickUp && !hasBox) {
         return false;
       }
+      // Jika kendaraan memiliki salah satu atau keduanya, lanjutkan pengecekan
+    } else {
+      return false; // vehicleFeatures tidak ada
     }
-
-    if (vehicleConfig.box) {
-      if (!vehicleFeatures.value || !vehicleFeatures.value.box) {
-        return false;
-      }
+  } 
+  // Jika hanya pick_up saja
+  else if (vehicleConfig.pick_up) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.pick_up) {
+      return false;
     }
+  } 
+  // Jika hanya box saja
+  else if (vehicleConfig.box) {
+    if (!vehicleFeatures.value || !vehicleFeatures.value.box) {
+      return false;
+    }
+  }
 
   return true;
 };
@@ -431,28 +507,132 @@ const hasCompatibilitySettings = (point) => {
   );
 };
 
+// Fungsi untuk mendapatkan semua target MenuPoint.id dari sebuah point
+const getAllTargetPointIds = (point) => {
+  const targetIds = [];
+  const settings = point.settings;
+  
+  if (settings?.radios) {
+    settings.radios.forEach(radio => {
+      if (radio.settings?.show_trigger && radio.settings.target_point_id) {
+        const normalizedIds = radio.settings.target_point_id.map(id => id.toString());
+        targetIds.push(...normalizedIds);
+      }
+    });
+  }
+  
+  return [...new Set(targetIds)];
+};
+
+// Handler untuk menangani trigger langsung dari component
+const handleDirectTrigger = (event) => {
+  const { pointId, value, option } = event;
+  processTriggerLogic(pointId, value);
+};
+
+// Handler untuk update dengan trigger logic
+const handleTriggerUpdate = (inspectionPointId, value, type) => {
+  // Pertama, update result seperti biasa
+  updateResult(inspectionPointId, value, type);
+  
+  // Kemudian, proses trigger logic
+  processTriggerLogic(inspectionPointId, value);
+};
+
+// Proses trigger logic setelah value diupdate
+const processTriggerLogic = (inspectionPointId, value) => {
+  // Cari point berdasarkan inspectionPointId
+  const point = props.category.points.find(p => p.inspection_point?.id === inspectionPointId);
+  if (!point) return;
+  
+  const menuPointId = point.id; // MenuPoint.id
+  const normalizedMenuPointId = menuPointId.toString();
+  
+  // Reset semua target points dari point ini sebelum memproses yang baru
+  const allTargetIds = getAllTargetPointIds(point);
+  
+  // Hapus dulu semua target points dari triggeredPoints
+  allTargetIds.forEach(targetId => {
+    const normalizedTargetId = targetId.toString();
+    const index = triggeredPoints.value.indexOf(normalizedTargetId);
+    if (index > -1) {
+      triggeredPoints.value.splice(index, 1);
+    }
+  });
+  
+  // Cari option yang dipilih
+  let selectedOptions = [];
+  
+  if (Array.isArray(value)) {
+    // Untuk multi-select, cari semua option yang dipilih
+    value.forEach(val => {
+      const opt = point.settings?.radios?.find(opt => opt.value === val);
+      if (opt) selectedOptions.push(opt);
+    });
+  } else {
+    // Untuk single-select
+    const opt = point.settings?.radios?.find(opt => opt.value === value);
+    if (opt) selectedOptions.push(opt);
+  }
+  
+  // Process each selected option
+  selectedOptions.forEach(selectedOption => {
+    if (selectedOption?.settings?.show_trigger) {
+      const targetPointIds = selectedOption.settings.target_point_id || [];
+      
+      // Tambahkan target points ke triggeredPoints
+      targetPointIds.forEach(targetId => {
+        const normalizedTargetId = targetId.toString();
+        if (!triggeredPoints.value.includes(normalizedTargetId)) {
+          triggeredPoints.value.push(normalizedTargetId);
+        }
+      });
+    }
+  });
+  
+  // Emit event bahwa ada perubahan pada triggered points
+  emit('triggerPointsChanged', {
+    pointId: normalizedMenuPointId,
+    targetPointIds: selectedOptions.flatMap(opt => opt.settings?.target_point_id || []),
+    action: 'update'
+  });
+};
+
 // Tampilkan info kompatibilitas
 const showCompatibilityInfo = (point) => {
   return hasCompatibilitySettings(point) && (showGlobalHidden.value || isFullyCompatible(point));
 };
 
-// Tampilkan detail kompatibilitas
-const showCompatibilityDetails = (point) => {
-  return hasCompatibilitySettings(point) && showGlobalHidden.value;
+// Fungsi untuk mengecek apakah point harus ditampilkan berdasarkan trigger
+const shouldShowPointBasedOnTrigger = (point) => {
+  const menuPointId = point.id; // MenuPoint.id
+  if (!menuPointId) return true;
+  
+  const normalizedMenuPointId = menuPointId.toString();
+  
+  // Jika point adalah point terpicu (is_triggered: true)
+  if (point.settings?.is_triggered) {
+    // Cek apakah sudah dipicu
+    const isTriggered = triggeredPoints.value.includes(normalizedMenuPointId);
+    return isTriggered;
+  }
+  
+  // Jika bukan point terpicu, selalu tampilkan
+  return true;
 };
 
 /**
- * FUNGSI UTAMA: Gabungkan logika lama dengan filter kompatibilitas
+ * FUNGSI UTAMA: Gabungkan logika lama dengan filter kompatibilitas dan trigger
  */
 const renderedItems = computed(() => {
   const points = props.category.points || [];
   const itemsToRender = [];
-  let hiddenGroup = []; 
+  let hiddenGroup = [];
 
   // KONDISI 1: Jika toggle global aktif (Tampilkan Semua), tampilkan semua poin
   if (showGlobalHidden.value) {
     if (props.category.isDamageMenu) {
-      return points.filter(p => p.is_default || hasPointData(p.inspection_point?.id) || showGlobalHidden.value);
+      return points.filter(p => p.is_default || hasPointData(p.id) || showGlobalHidden.value);
     }
     return points; 
   }
@@ -460,24 +640,38 @@ const renderedItems = computed(() => {
   // KONDISI 2: Jika damage menu non-global (gunakan logika lama)
   if (props.category.isDamageMenu) {
     return points.filter(point => {
-      const pointId = point.inspection_point?.id;
-      return hasPointData(pointId) || point.is_default || manuallyShownPoints.value.includes(pointId);
+      const menuPointId = point.id;
+      return hasPointData(menuPointId) || point.is_default || manuallyShownPoints.value.includes(menuPointId);
     });
   }
 
   // KONDISI 3: Logika inline untuk non-damage menu dengan GABUNGAN filter
   points.forEach((point) => {
-    const pointId = point.inspection_point?.id;
-    const hasData = hasPointData(pointId);
-    const isShownManually = manuallyShownPoints.value.includes(pointId);
+    const menuPointId = point.id; // MenuPoint ID
+    const hasData = hasPointData(menuPointId);
+    const isShownManually = manuallyShownPoints.value.includes(menuPointId);
     
-    // LOGIKA BARU: Filter berdasarkan kompatibilitas HANYA jika point memiliki setting kompatibilitas
+    // LOGIKA BARU: Filter berdasarkan kompatibilitas
     const shouldCheckCompatibility = hasCompatibilitySettings(point);
     const isCompatible = !shouldCheckCompatibility || isFullyCompatible(point);
+    
+    // LOGIKA TRIGGER
+    const shouldShowByTrigger = shouldShowPointBasedOnTrigger(point);
 
-    // Kriteria tampil: 
-    // - is_default TRUE, ATAU sudah ada data, ATAU sudah dibuka manual
-    // - DAN harus compatible (jika ada setting kompatibilitas)
+    // Untuk point dengan is_triggered: true
+    if (point.settings?.is_triggered) {
+      if (shouldShowByTrigger) {
+        // Point terpicu yang sudah aktif: Tampilkan jika ada data atau default
+        const isVisible = (point.is_default || hasData || isShownManually) && isCompatible;
+        
+        if (isVisible) {
+          itemsToRender.push(point);
+        }
+      }
+      return;
+    }
+    
+    // Untuk point biasa (non-triggered)
     const isVisible = (point.is_default || hasData || isShownManually) && isCompatible;
 
     if (isVisible) {
@@ -485,11 +679,11 @@ const renderedItems = computed(() => {
         itemsToRender.push({
           is_link: true,
           count: hiddenGroup.length,
-          hiddenIds: hiddenGroup.map(p => p.inspection_point.id), 
+          hiddenIds: hiddenGroup.map(p => p.id), // Gunakan MenuPoint.id
         });
         
         hiddenGroup.forEach(hiddenPoint => {
-          if (manuallyShownPoints.value.includes(hiddenPoint.inspection_point.id)) {
+          if (manuallyShownPoints.value.includes(hiddenPoint.id)) {
             itemsToRender.push(hiddenPoint);
           }
         });
@@ -498,9 +692,8 @@ const renderedItems = computed(() => {
       }
       itemsToRender.push(point);
     } else {
-      // Hanya masukkan ke hidden group jika compatible
-      // Point yang tidak compatible tidak akan pernah ditampilkan, bahkan di hidden group
-      if (!hasCompatibilitySettings(point) || isFullyCompatible(point)) {
+      // Hanya masukkan ke hidden group jika compatible DAN bukan point terpicu
+      if (isCompatible && !point.settings?.is_triggered) {
         hiddenGroup.push(point);
       }
     }
@@ -511,26 +704,17 @@ const renderedItems = computed(() => {
     itemsToRender.push({
       is_link: true,
       count: hiddenGroup.length,
-      hiddenIds: hiddenGroup.map(p => p.inspection_point.id),
+      hiddenIds: hiddenGroup.map(p => p.id), // Gunakan MenuPoint.id
     });
     
     hiddenGroup.forEach(hiddenPoint => {
-      if (manuallyShownPoints.value.includes(hiddenPoint.inspection_point.id)) {
+      if (manuallyShownPoints.value.includes(hiddenPoint.id)) {
         itemsToRender.push(hiddenPoint);
       }
     });
   }
   
-  return itemsToRender.filter(item => 
-    item.is_link || 
-    item.is_default || 
-    hasPointData(item.inspection_point?.id) || 
-    manuallyShownPoints.value.includes(item.inspection_point?.id)
-  );
-});
-
-const filteredPoints = computed(() => {
-  return renderedItems.value.filter(item => !item.is_link);
+  return itemsToRender;
 });
 
 // Fungsi untuk menampilkan point tersembunyi
@@ -545,18 +729,24 @@ const revealHiddenPoints = (hiddenIds) => {
 };
 
 // Cek apakah point sudah memiliki data
-const hasPointData = (pointId) => {
-  if (!pointId) {
+const hasPointData = (menuPointId) => {
+  if (!menuPointId) {
     return false;
   }
   
-  const hasServerResult = page.props.existingResults[pointId] !== undefined;
-  const hasServerImages = page.props.existingImages[pointId] && page.props.existingImages[pointId].length > 0;
+  // Cari inspectionPointId berdasarkan menuPointId
+  const point = props.category.points.find(p => p.id === menuPointId);
+  if (!point || !point.inspection_point?.id) return false;
   
-  const hasLocalResult = props.form.results[pointId] && 
-                       (props.form.results[pointId].status || props.form.results[pointId].note);
+  const inspectionPointId = point.inspection_point.id;
   
-  const hasLocalImages = props.form.images[pointId] && props.form.images[pointId].length > 0;
+  const hasServerResult = page.props.existingResults[inspectionPointId] !== undefined;
+  const hasServerImages = page.props.existingImages[inspectionPointId] && page.props.existingImages[inspectionPointId].length > 0;
+  
+  const hasLocalResult = props.form.results[inspectionPointId] && 
+                       (props.form.results[inspectionPointId].status || props.form.results[inspectionPointId].note);
+  
+  const hasLocalImages = props.form.images[inspectionPointId] && props.form.images[inspectionPointId].length > 0;
 
   return hasServerResult || hasServerImages || hasLocalResult || hasLocalImages;
 };
@@ -568,77 +758,371 @@ const defaultRadioOptions = [
   { value: 'na', label: 'N/A' }
 ];
 
-// Cek apakah point sudah lengkap
+// Cek apakah point sudah lengkap dengan semua pengaturan
 const isPointComplete = (menuPoint) => {
-  const result = props.form.results[menuPoint.inspection_point?.id];
-  const image = props.form.images[menuPoint.inspection_point?.id];
+  const inspectionPointId = menuPoint.inspection_point?.id;
+  const result = props.form.results[inspectionPointId];
+  const images = props.form.images[inspectionPointId] || [];
+  
+  // Jika point wajib diisi (settings.is_required = true)
+  const isRequired = menuPoint.settings?.is_required !== false;
+  const isMultiSelection = Array.isArray(result?.status);
+  
+  // Jika tidak wajib diisi, selalu return true
+  if (!isRequired) {
+    return true;
+  }
 
   if (!result) return false;
   
-  switch(menuPoint.input_type) {
+  const settings = menuPoint.settings || {};
+  const inputType = menuPoint.input_type;
+  
+  switch(inputType) {
     case 'text':
-    case 'number':
-    case 'date':
-    case 'account':
-    case 'textarea':
-      return !!result.note;
+      if (!result.note || result.note.trim() === '') return false;
+      
+      if (settings.min_length) {
+        const minLength = parseInt(settings.min_length);
+        if (result.note.trim().length < minLength) return false;
+      }
+      
+      if (settings.max_length) {
+        const maxLength = parseInt(settings.max_length);
+        if (result.note.trim().length > maxLength) return false;
+      }
+      
+      return true;
 
-    case 'select':
+    case 'number':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const numValue = parseFloat(result.note);
+      if (isNaN(numValue)) return false;
+      
+      if (settings.min !== undefined) {
+        const min = parseFloat(settings.min);
+        if (numValue < min) return false;
+      }
+      
+      if (settings.max !== undefined) {
+        const max = parseFloat(settings.max);
+        if (numValue > max) return false;
+      }
+      
+      if (settings.step) {
+        const step = parseFloat(settings.step);
+        const remainder = (numValue - (settings.min || 0)) % step;
+        if (Math.abs(remainder) > 0.00001 && Math.abs(remainder - step) > 0.00001) {
+          return false;
+        }
+      }
+      
+      return true;
+
+    case 'textarea':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      if (settings.min_length) {
+        const minLength = parseInt(settings.min_length);
+        if (result.note.trim().length < minLength) return false;
+      }
+      
+      if (settings.max_length) {
+        const maxLength = parseInt(settings.max_length);
+        if (result.note.trim().length > maxLength) return false;
+      }
+      
+      return true;
+
+    case 'account':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const cleanValue = result.note.replace(/[^0-9]/g, '');
+      const numAccount = parseFloat(cleanValue);
+      if (isNaN(numAccount)) return false;
+      
+      if (settings.min_value) {
+        const minValue = parseFloat(settings.min_value);
+        if (numAccount < minValue) return false;
+      }
+      
+      if (settings.max_value) {
+        const maxValue = parseFloat(settings.max_value);
+        if (numAccount > maxValue) return false;
+      }
+      
+      return true;
+
+    case 'date':
+      if (!result.note || result.note.trim() === '') return false;
+      
+      const selectedDate = new Date(result.note);
+      
+      if (settings.min_date) {
+        const minDate = new Date(settings.min_date);
+        if (selectedDate < minDate) return false;
+      }
+      
+      if (settings.max_date) {
+        const maxDate = new Date(settings.max_date);
+        if (selectedDate > maxDate) return false;
+      }
+      
+      return true;
+
     case 'radio':
       if (!result.status) return false;
       
-      const selectedOption = menuPoint.settings?.radios?.find(opt => opt.value === result.status);
-      if (selectedOption?.settings) {
-        if (selectedOption.settings.show_textarea && !result.note?.trim()) {
+      if (isMultiSelection) {
+        if (result.status.length === 0) return false;
+        
+        let hasRequiredTextarea = false;
+        let hasRequiredImage = false;
+        
+        for (const selectedValue of result.status) {
+          const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+          if (!selectedOption) continue;
+          
+          if (selectedOption.settings?.show_textarea && 
+              selectedOption.settings.textarea_is_required !== false) {
+            hasRequiredTextarea = true;
+          }
+          
+          if (selectedOption.settings?.show_image_upload && 
+              selectedOption.settings.image_is_required !== false) {
+            hasRequiredImage = true;
+          }
+        }
+        
+        if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
           return false;
         }
-        if (selectedOption.settings.show_image_upload && image?.length === 0) {
+        
+        if (result.note && result.note.trim() !== '') {
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+            
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        if (hasRequiredImage && (!images || images.length === 0)) {
           return false;
+        }
+        
+        if (images && images.length > 0) {
+          let maxFiles = 1;
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (selectedOption?.settings?.show_image_upload && selectedOption.settings.max_files) {
+              maxFiles = Math.max(maxFiles, parseInt(selectedOption.settings.max_files));
+            }
+          }
+          
+          if (images.length > maxFiles) return false;
+        }
+        
+        return true;
+        
+      } else {
+        const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+        if (!selectedOption) return false;
+        
+        if (selectedOption.settings?.show_textarea) {
+          if (selectedOption.settings.textarea_is_required !== false) {
+            if (!result.note || result.note.trim() === '') {
+              return false;
+            }
+          }
+          
+          if (result.note && result.note.trim() !== '') {
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        if (selectedOption.settings?.show_image_upload) {
+          if (selectedOption.settings.image_is_required !== false) {
+            if (!images || images.length === 0) {
+              return false;
+            }
+          }
+          
+          if (images && images.length > 0 && selectedOption.settings.max_files) {
+            const maxFiles = parseInt(selectedOption.settings.max_files);
+            if (images.length > maxFiles) return false;
+          }
+        }
+        
+        return true;
+      }
+
+    case 'select':
+      if (!result.status) return false;
+      
+      const selectedOptionSelect = settings.radios?.find(opt => opt.value === result.status);
+      if (!selectedOptionSelect) return false;
+      
+      if (selectedOptionSelect.settings?.show_textarea) {
+        if (selectedOptionSelect.settings.textarea_is_required !== false) {
+          if (!result.note || result.note.trim() === '') {
+            return false;
+          }
+        }
+        
+        if (result.note && result.note.trim() !== '') {
+          if (selectedOptionSelect.settings.min_length) {
+            const minLength = parseInt(selectedOptionSelect.settings.min_length);
+            if (result.note.trim().length < minLength) return false;
+          }
+          if (selectedOptionSelect.settings.max_length) {
+            const maxLength = parseInt(selectedOptionSelect.settings.max_length);
+            if (result.note.trim().length > maxLength) return false;
+          }
         }
       }
+      
+      if (selectedOptionSelect.settings?.show_image_upload) {
+        if (selectedOptionSelect.settings.image_is_required !== false) {
+          if (!images || images.length === 0) {
+            return false;
+          }
+        }
+        
+        if (images && images.length > 0 && selectedOptionSelect.settings.max_files) {
+          const maxFiles = parseInt(selectedOptionSelect.settings.max_files);
+          if (images.length > maxFiles) return false;
+        }
+      }
+      
       return true;
 
     case 'imageTOradio':
-      if (image?.length === 0 || !result.status) return false;
+      if (!images || images.length === 0) return false;
       
-      const selectedOptionImage = menuPoint.settings?.radios?.find(opt => opt.value === result.status);
-      if (selectedOptionImage?.settings) {
-        if (selectedOptionImage.settings.show_textarea && !result.note?.trim()) {
+      if (!result.status) return false;
+      
+      if (settings.max_files) {
+        const maxFiles = parseInt(settings.max_files);
+        if (images.length > maxFiles) return false;
+      }
+      
+      if (isMultiSelection) {
+        if (result.status.length === 0) return false;
+        
+        let hasRequiredTextarea = false;
+        
+        for (const selectedValue of result.status) {
+          const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+          if (!selectedOption) continue;
+          
+          if (selectedOption.settings?.show_textarea && 
+              selectedOption.settings.textarea_is_required !== false) {
+            hasRequiredTextarea = true;
+          }
+        }
+        
+        if (hasRequiredTextarea && (!result.note || result.note.trim() === '')) {
           return false;
         }
+        
+        if (result.note && result.note.trim() !== '') {
+          for (const selectedValue of result.status) {
+            const selectedOption = settings.radios?.find(opt => opt.value === selectedValue);
+            if (!selectedOption || !selectedOption.settings?.show_textarea) continue;
+            
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        return true;
+        
+      } else {
+        const selectedOption = settings.radios?.find(opt => opt.value === result.status);
+        if (!selectedOption) return false;
+        
+        if (selectedOption.settings?.show_textarea) {
+          if (selectedOption.settings.textarea_is_required !== false) {
+            if (!result.note || result.note.trim() === '') {
+              return false;
+            }
+          }
+          
+          if (result.note && result.note.trim() !== '') {
+            if (selectedOption.settings.min_length) {
+              const minLength = parseInt(selectedOption.settings.min_length);
+              if (result.note.trim().length < minLength) return false;
+            }
+            if (selectedOption.settings.max_length) {
+              const maxLength = parseInt(selectedOption.settings.max_length);
+              if (result.note.trim().length > maxLength) return false;
+            }
+          }
+        }
+        
+        return true;
       }
-      return true;
 
     case 'image':
-      return image?.length > 0;
+      if (images.length === 0) return false;
+      
+      if (settings.max_files) {
+        const maxFiles = parseInt(settings.max_files);
+        if (images.length > maxFiles) return false;
+      }
+      
+      return true;
 
     default:
-      return !!result.status || !!result.note?.trim();
+      return !!(result.status || result.note?.trim());
   }
-};
+};  
 
 // Event handlers
-const updateResult = (pointId, value, type) => {
-  emit('updateResult', { pointId, type, value });
+const updateResult = (inspectionPointId, value, type) => {
+  emit('updateResult', { pointId: inspectionPointId, type, value });
 };
 
-const saveResult = (pointId) => {
-  // Untuk sekarang, kita hanya update state lokal
-  // Simpan otomatis sudah ditangani oleh watcher di parent
-  console.log('Save result for point:', pointId);
+const saveResult = (inspectionPointId) => {
+  console.log('Save result for point:', inspectionPointId);
 };
 
 const removeImage = (pointId, imageIndex) => {
   emit('removeImage', { pointId, imageIndex });
 };
 
-const HapusPoint = (pointId) => {
-  emit("hapusPoint", pointId);
+const HapusPoint = (inspectionPointId) => {
+  emit("hapusPoint", inspectionPointId);
 };
 
 // Watchers untuk perubahan data
 watch(() => props.form.results, (newResults) => {
-  // Handle perubahan results jika diperlukan
+  // Re-initialize triggered points ketika results berubah
+  initializeTriggeredPoints();
 }, { deep: true });
 
 watch(() => props.form.images, (newImages) => {
@@ -655,12 +1139,3 @@ watch(vehicleFeatures, (newFeatures) => {
   console.log('Vehicle features updated:', newFeatures);
 }, { deep: true });
 </script>
-
-<style scoped>
-/* Mobile-first styles */
-@media (min-width: 640px) {
-  .point-card {
-    padding: 1.25rem;
-  }
-}
-</style>

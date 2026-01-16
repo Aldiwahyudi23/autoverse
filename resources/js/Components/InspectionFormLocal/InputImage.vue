@@ -179,9 +179,6 @@ import WebCamRTC from './Modal-uploader/WebCamRTC.vue';
 import WebcamModal from './Modal-uploader/WebcamModal.vue';
 import NativeCameraInput from './Modal-uploader/NativeCameraInput.vue';
 
-// Debug flag
-const DEBUG = true;
-
 // Define props dan emits
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -202,7 +199,7 @@ const props = defineProps({
   point: Object
 });
 
-const emit = defineEmits(['update:modelValue', 'save', 'removeImage', 'uploaded', 'uploadProgress']);
+const emit = defineEmits(['update:modelValue', 'save', 'removeImage', 'uploaded', 'uploadProgress', 'isUploading']);
 
 const nativeCamera = ref(null)
 
@@ -232,12 +229,14 @@ const cameraQualitySetting = inject('cameraQualitySetting', ref('HP_Native'));
 const STORAGE_KEY = `inspection-${props.inspectionId}-point-${props.pointId}-backup`;
 
 // Computed properties
-const allowMultiple = computed(() => Number(props.settings.max_files) > 1);
+const allowMultiple = computed(() => Number(props.settings?.max_files) > 1);
 const allowedTypesString = computed(() => {
-  return props.settings.allowed_types.map(type => `.${type}`).join(', ');
+  const allowedTypes = props.settings?.allowed_types || ['jpg', 'png', 'jpeg'];
+  return allowedTypes.map(type => `.${type}`).join(', ');
 });
 const aspectRatio = computed(() => {
-  const parts = props.settings.camera_aspect_ratio.split(':');
+  const aspectRatioStr = props.settings?.camera_aspect_ratio || '3:4';
+  const parts = aspectRatioStr.split(':');
   if (parts.length === 2) {
     const width = parseFloat(parts[0]);
     const height = parseFloat(parts[1]);
@@ -248,10 +247,8 @@ const aspectRatio = computed(() => {
   return 3 / 4;
 });
 
-// ============ FIXED: allImages computed ============
+// ============ allImages computed ============
 const allImages = computed(() => {
-  if (DEBUG) console.log('🔄 allImages computed called');
-  
   const finalImages = [];
   const processedIds = new Set();
 
@@ -261,13 +258,6 @@ const allImages = computed(() => {
     
     if (mImg.id && processedIds.has(mImg.id)) continue;
     if (mImg.id) processedIds.add(mImg.id);
-
-    // Debug log untuk melihat struktur data
-    if (DEBUG) {
-      console.log('📥 Database image:', mImg);
-      console.log('📥 Type of preview:', typeof mImg.preview);
-      console.log('📥 Type of public_url:', typeof mImg.public_url);
-    }
 
     // Normalize image data
     const normalizedImage = normalizeImageData(mImg);
@@ -292,11 +282,10 @@ const allImages = computed(() => {
     });
   }
 
-  if (DEBUG) console.log('✅ Final allImages:', finalImages);
   return finalImages;
 });
 
-// ============ FIXED: Helper Functions ============
+// ============ Helper Functions ============
 const normalizeImageData = (image) => {
   if (!image || typeof image !== 'object') return {};
   
@@ -340,10 +329,9 @@ const fixDoubleStorage = (url) => {
   return fixed;
 };
 
-// ============ FIXED: Safe Image Source Function ============
+// ============ Safe Image Source Function ============
 const safeImageSrc = (image) => {
   if (!image || typeof image !== 'object') {
-    if (DEBUG) console.warn('❌ safeImageSrc: image is not object', image);
     return '';
   }
   
@@ -351,11 +339,9 @@ const safeImageSrc = (image) => {
   
   // CRITICAL FIX: Ensure src is a string, not an object
   if (typeof src !== 'string') {
-    console.error('🚨 CRITICAL: getImageSrc returned non-string:', typeof src, src);
     return '';
   }
   
-  if (DEBUG && src) console.log('✅ safeImageSrc result:', src);
   return src;
 };
 
@@ -364,37 +350,27 @@ const getImageSrc = (image) => {
     return '';
   }
   
-  // Debug: log all available fields
-  if (DEBUG) {
-    console.log('🔍 getImageSrc called with:', image);
-    console.log('🔍 Available fields:', Object.keys(image));
-  }
-  
   // Priority 1: Use preview URL (fixed for double storage)
   if (image.preview && typeof image.preview === 'string') {
     const fixedUrl = fixDoubleStorage(image.preview);
-    if (DEBUG) console.log('✅ Using preview URL:', fixedUrl);
     return fixedUrl;
   }
   
   // Priority 2: public_url
   if (image.public_url && typeof image.public_url === 'string') {
     const fixedUrl = fixDoubleStorage(image.public_url);
-    if (DEBUG) console.log('✅ Using public_url:', fixedUrl);
     return fixedUrl;
   }
   
   // Priority 3: original_url
   if (image.original_url && typeof image.original_url === 'string') {
     const fixedUrl = fixDoubleStorage(image.original_url);
-    if (DEBUG) console.log('✅ Using original_url:', fixedUrl);
     return fixedUrl;
   }
   
   // Priority 4: optimized_url
   if (image.optimized_url && typeof image.optimized_url === 'string') {
     const fixedUrl = fixDoubleStorage(image.optimized_url);
-    if (DEBUG) console.log('✅ Using optimized_url:', fixedUrl);
     return fixedUrl;
   }
   
@@ -402,7 +378,6 @@ const getImageSrc = (image) => {
   if (image.image_path && typeof image.image_path === 'string') {
     const cleanPath = image.image_path.replace(/^\/?storage\//, '');
     const url = `/storage/${cleanPath}`;
-    if (DEBUG) console.log('✅ Generated from image_path:', url);
     return url;
   }
   
@@ -410,23 +385,18 @@ const getImageSrc = (image) => {
   if (image.path && typeof image.path === 'string') {
     const cleanPath = image.path.replace(/^\/?storage\//, '');
     const url = `/storage/${cleanPath}`;
-    if (DEBUG) console.log('✅ Generated from path:', url);
     return url;
   }
   
-  if (DEBUG) console.warn('⚠️ No valid image source found for:', image);
   return '';
 };
 
 const handleImageError = (image) => {
-  console.error('❌ Image load error for:', image);
-  console.error('❌ Attempted URL:', safeImageSrc(image));
   imageError.value = true;
   
   // Try fallback URL
   const fallbackUrl = getFallbackUrl(image);
   if (fallbackUrl && fallbackUrl !== safeImageSrc(image)) {
-    console.log('🔄 Trying fallback URL:', fallbackUrl);
     // Force reload with fallback
     const imgElement = event?.target;
     if (imgElement) {
@@ -449,7 +419,7 @@ const getFallbackUrl = (image) => {
   return '';
 };
 
-// ============ Existing Functions (minimal changes) ============
+// ============ Existing Functions ============
 const openSourceOptions = () => {
   if (showPreviewModal.value) showPreviewModal.value = false;
   
@@ -502,27 +472,7 @@ const closePreviewModal = () => {
   }
 };
 
-// ============ Debug watchers ============
-watch(() => props.modelValue, (newVal) => {
-  if (DEBUG) {
-    console.log('🔄 modelValue updated:', newVal);
-    if (newVal && newVal.length > 0) {
-      console.log('📊 First image structure:', JSON.stringify(newVal[0], null, 2));
-      console.log('🔍 Type of preview:', typeof newVal[0]?.preview);
-    }
-  }
-}, { deep: true });
-
-// ============ Rest of existing functions (keep as is) ============
-// [Keep all existing functions below exactly as they were]
-// loadImageWithDimensions, validateFileType, compressAndSquareImage,
-// handleImageSelect, handlePhotoCaptured, openPreviewModal,
-// applyRotationToImage, saveBackupToLocalStorage, clearBackupFromLocalStorage,
-// triggerUploadAndSave, uploadImagesToServer, retryUpload,
-// handleRemovePreviewImage, removeImage, onMounted
-
-// ... [PASTE ALL YOUR EXISTING FUNCTIONS HERE EXACTLY AS THEY WERE]
-// START COPY FROM HERE (your existing functions):
+// ============ Rest of existing functions ============
 const loadImageWithDimensions = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -539,7 +489,6 @@ const loadImageWithDimensions = (file) => {
         });
       };
       img.onerror = () => {
-        console.error("Failed to load image for dimensions:", file.name);
         resolve({ file, preview: URL.createObjectURL(file), rotation: 0, width: 0, height: 0, isNew: true });
       };
       img.src = e.target.result;
@@ -550,7 +499,7 @@ const loadImageWithDimensions = (file) => {
 
 const validateFileType = (file) => {
   const extension = file.name.split('.').pop().toLowerCase();
-  return props.settings.allowed_types.includes(extension);
+  return props.settings?.allowed_types?.includes(extension) || false;
 };
 
 const compressAndSquareImage = async (file) => {
@@ -657,7 +606,6 @@ const handleImageSelect = async (event) => {
     
     event.target.value = '';
   } catch (error) {
-    console.error("Error processing selected images:", error);
     alert("Failed to process selected images. Please try again.");
     showSourceOptionsModal.value = false;
     if (allImages.value.length > 0) showPreviewModal.value = true;
@@ -699,7 +647,6 @@ const handlePhotoCaptured = async (newImageFile) => {
       };
       img.src = URL.createObjectURL(compressedFile);
     } catch (error) {
-      console.error("Error processing captured image:", error);
       alert("Failed to process captured image. Please try again.");
     }
   } else {
@@ -749,7 +696,6 @@ const handleDirectPhotoCaptured = async (newImageFile) => {
       };
       img.src = URL.createObjectURL(compressedFile);
     } catch (error) {
-      console.error("Error processing direct captured image:", error);
       alert("Failed to process captured image. Please try again.");
     }
   } else {
@@ -815,13 +761,11 @@ const applyRotationToImage = (imageObject) => {
         resolve({ file: finalFile, width: newCanvasWidth, height: newCanvasHeight });
         
       } catch (error) {
-        console.error("Error processing rotated image:", error);
         resolve({ file: imageObject.file, width: imageObject.width, height: imageObject.height });
       }
     };
     
     img.onerror = () => {
-      console.error("Failed to load image for rotation processing:", imageObject.preview);
       resolve({ file: imageObject.file, width: imageObject.width, height: imageObject.height });
     };
     
@@ -845,7 +789,7 @@ const saveBackupToLocalStorage = (images) => {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(backupData));
   } catch (error) {
-    console.error('Error saving backup:', error);
+    // Tetap jalankan tanpa error
   }
 };
 
@@ -927,7 +871,6 @@ const triggerUploadAndSave = async (imagesToSaveFromPreview) => {
     }
 
   } catch (error) {
-    console.error("Error during image processing:", error);
     alert("Terjadi error saat memproses gambar. Data tersimpan secara lokal.");
   } finally {
     isUploading.value = false;
@@ -1001,8 +944,6 @@ const uploadImagesToServer = async (imagesToUpload, existingImages) => {
         }
 
       } catch (imgError) {
-        console.error(`Error uploading image ${i + 1}:`, imgError);
-
         // Mark as failed
         if (previewIndex !== -1) {
           previewImages.value[previewIndex].isUploading = false;
@@ -1027,11 +968,7 @@ const uploadImagesToServer = async (imagesToUpload, existingImages) => {
       clearBackupFromLocalStorage();
     }
 
-    console.log(`✅ Successfully uploaded ${successCount}/${imagesToUpload.length} images`);
-
   } catch (error) {
-    console.error("Error in upload process:", error);
-
     // Mark all remaining as failed
     imagesToUpload.forEach(img => {
       const previewIndex = previewImages.value.findIndex(p =>
@@ -1054,7 +991,6 @@ const uploadImagesToServer = async (imagesToUpload, existingImages) => {
 // TAMBAH: Fungsi retry upload untuk gambar yang gagal
 const retryUpload = async (failedImage) => {
   if (!failedImage || !failedImage.file) {
-    console.error("No file to retry upload");
     return;
   }
 
@@ -1116,13 +1052,9 @@ const retryUpload = async (failedImage) => {
       if (!hasFailedImages) {
         clearBackupFromLocalStorage();
       }
-
-      console.log("✅ Successfully retried upload for 1 image");
     }
 
   } catch (error) {
-    console.error("Error retrying upload:", error);
-
     // Mark as failed again
     if (previewIndex !== -1) {
       previewImages.value[previewIndex].isUploading = false;
@@ -1170,7 +1102,7 @@ const handleRemovePreviewImage = (imageToRemove) => {
     closePreviewModal();
   }
 };
-//key
+
 const removeImage = async (imageObject) => {
   if (imageObject.id || imageObject.image_path) {
     try {
@@ -1178,7 +1110,6 @@ const removeImage = async (imageObject) => {
         data: { image_id: imageObject.id, image_path: imageObject.image_path }
       });
     } catch (error) {
-      console.error("Error deleting image from server:", error);
       if (error.response?.data?.message) {
         alert(`Failed to delete image from server: ${error.response.data.message}`);
       } else {
@@ -1266,14 +1197,11 @@ const directUploadImage = async (imageObject) => {
         images: updatedImages,
         newImagesCount: 1
       });
-
-      console.log("✅ Successfully uploaded image directly");
     } else {
       throw new Error('No image data received from server');
     }
 
   } catch (error) {
-    console.error("Error uploading image directly:", error);
     alert("Failed to upload image. Please try again.");
   } finally {
     isUploading.value = false;
@@ -1348,15 +1276,11 @@ const directUploadImageWithLoading = async (imageObject) => {
           URL.revokeObjectURL(removed.preview);
         }
       }
-
-      console.log("✅ Successfully uploaded image directly with loading");
     } else {
       throw new Error('No image data received from server');
     }
 
   } catch (error) {
-    console.error("Error uploading image directly:", error);
-
     // Mark as failed
     const previewIndex = previewImages.value.findIndex(p => p.preview === imageObject.preview);
     if (previewIndex !== -1) {
@@ -1374,14 +1298,17 @@ const directUploadImageWithLoading = async (imageObject) => {
 // Load backup saat component mounted
 onMounted(() => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      console.log('Found backup images, ready for recovery if needed');
-    }
+    // Cukup load tanpa log
+    localStorage.getItem(STORAGE_KEY);
   } catch (error) {
-    console.error('Error loading backup:', error);
+    // Tidak perlu log error
   }
 });
+
+watch(isUploading, (val) => {
+  emit('isUploading', val);
+});
+
 </script>
 
 <style scoped>

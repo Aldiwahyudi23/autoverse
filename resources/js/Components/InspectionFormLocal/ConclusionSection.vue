@@ -442,12 +442,12 @@ const conclusionSettings = computed(() => {
 
 // Options
 const floodOptions = [
-  { value: 'yes', label: 'Ya' },
+  { value: 'yes', label: 'Ya Banjir' },
   { value: 'no', label: 'Tidak' }
 ]
 
 const collisionOptions = [
-  { value: 'yes', label: 'Ya' },
+  { value: 'yes', label: 'Ya Tabrak' },
   { value: 'no', label: 'Tidak' }
 ]
 
