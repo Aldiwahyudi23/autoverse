@@ -250,7 +250,7 @@ const handleUploading = (val) => {
 // Helper function untuk mendapatkan pengaturan berdasarkan prioritas is_repaired
 const getPrioritySettings = () => {
   const selectedOpts = getSelectedOptions(props.selectedValue);
-
+  
   if (selectedOpts.length === 0) {
     return { textareaSettings: null, imageSettings: null };
   }
@@ -258,7 +258,7 @@ const getPrioritySettings = () => {
   // Urutkan: is_repaired=true dulu, lalu ambil pengaturan yang paling ketat
   const repairedOptions = selectedOpts.filter(opt => opt.is_repaired === true);
   const nonRepairedOptions = selectedOpts.filter(opt => !opt.is_repaired || opt.is_repaired === false);
-
+  
   // Gunakan opsi dengan is_repaired true jika ada, jika tidak gunakan semua
   const priorityOptions = repairedOptions.length > 0 ? repairedOptions : nonRepairedOptions;
 
@@ -269,68 +269,62 @@ const getPrioritySettings = () => {
   let maxMinLength = 0;
   let maxMaxLength = 0;
   let placeholder = '';
-  let accumulatedDamageOptions = [];
-
+  
   // Gabungkan pengaturan image dari semua opsi prioritas
   let imageSettings = null;
   let hasImageUpload = false;
   let imageIsRequired = false;
   let maxFiles = 0;
 
-  // Cari pengaturan yang paling ketat dan akumulasi damage options
+  // Cari pengaturan yang paling ketat
   priorityOptions.forEach(opt => {
     if (opt.settings?.show_textarea) {
       hasTextarea = true;
-
+      
       // Gunakan yang paling wajib (required=true lebih tinggi prioritasnya)
       const currentIsRequired = opt.settings.textarea_is_required !== false;
       if (currentIsRequired) {
         textareaIsRequired = true;
       }
-
+      
       // Ambil min_length terbesar
       if (opt.settings.min_length) {
         const minLength = parseInt(opt.settings.min_length);
         maxMinLength = Math.max(maxMinLength, minLength);
       }
-
+      
       // Ambil max_length terbesar
       if (opt.settings.max_length) {
         const maxLength = parseInt(opt.settings.max_length);
         maxMaxLength = Math.max(maxMaxLength, maxLength);
       }
-
+      
       // Ambil placeholder dari opsi pertama yang ada
       if (opt.settings.placeholder && !placeholder) {
         placeholder = opt.settings.placeholder;
       }
-
-      // Akumulasi damage options dari semua opsi yang dipilih
-      if (opt.settings.damage_options && Array.isArray(opt.settings.damage_options)) {
-        accumulatedDamageOptions = [...accumulatedDamageOptions, ...opt.settings.damage_options];
-      }
-
+      
       // Simpan semua pengaturan dari opsi pertama yang ada textarea
       if (!textareaSettings) {
         textareaSettings = { ...opt.settings };
       }
     }
-
+    
     if (opt.settings?.show_image_upload) {
       hasImageUpload = true;
-
+      
       // Gunakan yang paling wajib
       const currentImageIsRequired = opt.settings.image_is_required !== false;
       if (currentImageIsRequired) {
         imageIsRequired = true;
       }
-
+      
       // Ambil max_files terbesar
       if (opt.settings.max_files) {
         const currentMaxFiles = parseInt(opt.settings.max_files);
         maxFiles = Math.max(maxFiles, currentMaxFiles);
       }
-
+      
       // Simpan semua pengaturan dari opsi pertama yang ada image upload
       if (!imageSettings) {
         imageSettings = { ...opt.settings };
@@ -346,14 +340,8 @@ const getPrioritySettings = () => {
     if (placeholder) textareaSettings.placeholder = placeholder;
     // Pastikan show_textarea tetap true
     textareaSettings.show_textarea = true;
-
-    // Set damage options yang sudah diakumulasi (remove duplicates by value)
-    const uniqueDamageOptions = accumulatedDamageOptions.filter((option, index, self) =>
-      index === self.findIndex(o => o.value === option.value)
-    );
-    textareaSettings.damage_options = uniqueDamageOptions;
   }
-
+  
   if (hasImageUpload && imageSettings) {
     imageSettings.image_is_required = imageIsRequired;
     if (maxFiles > 0) imageSettings.max_files = maxFiles;

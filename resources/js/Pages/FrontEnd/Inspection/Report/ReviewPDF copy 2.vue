@@ -1564,7 +1564,7 @@ const shouldShowStatusBadge = (point) => {
 
 const shouldShowNote = (point) => {
   const inputType = point.input_type || ''
-  return ['text', 'number', 'date', 'textarea', 'account'].includes(inputType) && hasNote(point)
+  return ['text', 'number', 'date', 'textarea'].includes(inputType) && hasNote(point)
 }
 
 const shouldShowImages = (point) => {
