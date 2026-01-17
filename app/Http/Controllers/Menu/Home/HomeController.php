@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Menu\Home;
 use App\Http\Controllers\Controller;
 use App\Models\DataInspection\Component;
 use App\Models\DataInspection\Inspection;
+use App\Models\Finance\Withdrawal;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,9 +42,15 @@ class HomeController extends Controller
                 ];
             });
 
+        $pengajuan = Withdrawal::with(['user', 'processor', 'transactionDistributions.transaction'])
+            ->whereIn('status', [Withdrawal::STATUS_PENDING, Withdrawal::STATUS_PROCESSING, Withdrawal::STATUS_APPROVED])
+            ->orderBy('requested_at', 'desc')
+            ->get();
+
         return Inertia::render('FrontEnd/Menu/Home/Dashboard', [
             'monthlyApprovedCount' => $monthlyApprovedInspections,
             'recentInspections' => $recentInspections,
+            'pengajuan' => $pengajuan,
         ]);
     }
 

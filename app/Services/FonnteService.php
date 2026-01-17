@@ -38,4 +38,13 @@ class FonnteService
 
         return $response->json();
     }
+
+    public function validatePhoneNumber($phoneNumber)
+    {
+        // Hapus karakter non-digit
+        $cleanNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
+        
+        // Validasi minimal 10 digit (untuk Indonesia biasanya 10-13 digit)
+        return strlen($cleanNumber) >= 10 && strlen($cleanNumber) <= 15;
+    }
 }

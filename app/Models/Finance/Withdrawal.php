@@ -238,7 +238,6 @@ class Withdrawal extends Model
             'released_by' => $this->processed_by,
         ]);
     }
-
     /**
      * Get formatted status with badge color
      */
@@ -321,5 +320,29 @@ class Withdrawal extends Model
                 $withdrawal->requested_at = now();
             }
         });
+    }
+
+    /**
+     * Scope untuk filter berdasarkan tahun
+     */
+    public function scopeByYear($query, $year)
+    {
+        return $query->whereYear('requested_at', $year);
+    }
+
+    /**
+     * Scope untuk filter berdasarkan bulan
+     */
+    public function scopeByMonth($query, $month)
+    {
+        return $query->whereMonth('requested_at', $month);
+    }
+
+    /**
+     * Scope untuk filter berdasarkan status
+     */
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('status', $status);
     }
 }

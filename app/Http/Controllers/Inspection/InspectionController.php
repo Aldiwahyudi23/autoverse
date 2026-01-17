@@ -21,6 +21,7 @@ use App\Models\Finance\TransactionDistribution;
 use App\Models\Team\Region;
 use App\Models\Team\RegionTeam;
 use App\Models\User;
+use App\Services\FonnteService;
 use App\Services\InspectionmPdfGenerator;
 use App\Services\InspectionPdfGenerator;
 use App\Services\NativeImageCompressor;
@@ -46,6 +47,13 @@ use Spatie\Browsershot\Browsershot;
 
 class InspectionController extends Controller
 {
+
+    protected $fonnteService;
+
+    public function __construct(FonnteService $fonnteService)
+    {
+        $this->fonnteService = $fonnteService;
+    }
     /**
      * Display a listing of the resource.
      */

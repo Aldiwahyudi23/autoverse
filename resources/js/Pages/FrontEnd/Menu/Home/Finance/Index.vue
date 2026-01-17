@@ -104,6 +104,9 @@
                         <div class="ml-2">
                             <p class="text-sm font-medium text-gray-600">Diberikan</p>
                             <p class="text-xl font-bold text-gray-900">Rp {{ formatNumber(totals.total_released) }}</p>
+                            <Link :href="route('withdrawals.history')" class="text-sm text-green-600 hover:underline">
+                                Lihat Riwayat →
+                            </Link>
                         </div>
                     </div>
                 </div>
@@ -117,6 +120,9 @@
                         <div class="ml-2">
                             <p class="text-sm font-medium text-gray-600">Menunggu</p>
                             <p class="text-xl font-bold text-gray-900">Rp {{ formatNumber(totals.total_pending) }}</p>
+                            <Link :href="route('withdrawal.create')" class="text-sm text-yellow-600 hover:underline">
+                                Tarik Fee →
+                            </Link>
                         </div>
                     </div>
                 </div>
@@ -162,7 +168,7 @@
             <!-- Search & Export Row -->
             <div class="flex justify-between items-center mb-4">
                 <!-- Search (kiri) -->
-                <div class="w-full sm:w-2">
+                <div class="w-full sm:w-1/3">
                     <input
                         type="text"
                         v-model="filters.search"

@@ -183,15 +183,21 @@ class TransactionController extends Controller
 
         return redirect()->back()->with('success', 'Distribusi berhasil di-serahkan.');
     }
-    /**
-     * Export data ke CSV
-     */
+
+/**
+ * Export data ke Excel (XLSX/CSV)
+ */
 public function export(Request $request)
 {
     $user = Auth::user();
     $role = $user->getRoleNames()->first();
     
-    $query = TransactionDistribution::with(['transaction', 'user', 'region']);
+    $query = TransactionDistribution::with([
+        'transaction.inspection',
+        'user',
+        'region',
+        'released'
+    ]);
 
     // Filter berdasarkan role
     if ($role === 'inspector') {
@@ -216,54 +222,130 @@ public function export(Request $request)
     if ($request->filled('date_to')) {
         $query->whereDate('created_at', '<=', $request->date_to);
     }
+    if ($request->filled('is_released')) {
+        $query->where('is_released', $request->is_released);
+    }
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function($q) use ($search) {
+            $q->whereHas('transaction', function($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('inspection', function($q) use ($search) {
+                      $q->where('plate_number', 'like', "%{$search}%")
+                        ->orWhere('car_name', 'like', "%{$search}%");
+                  });
+            })
+            ->orWhereHas('user', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            })
+            ->orWhereHas('region', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+        });
+    }
 
     $distributions = $query->orderBy('created_at', 'desc')->get();
 
-    $filename = "transaction_distributions_" . date('Y-m-d') . ".csv";
+    $filename = "Laporan_Distribusi_Pendapatan_" . date('Y-m-d') . ".csv";
+    
     $headers = [
-        'Content-Type' => 'text/csv; charset=UTF-8',
+        'Content-Type' => 'text/csv',
         'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        'Pragma' => 'no-cache',
+        'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+        'Expires' => '0'
     ];
 
     $callback = function() use ($distributions) {
         $file = fopen('php://output', 'w');
 
-        // Tambah BOM biar Excel Windows baca UTF-8
+        // Tambah BOM untuk UTF-8
         fputs($file, "\xEF\xBB\xBF");
 
-        // Header CSV
+        // Header dengan nama kolom yang lengkap
         fputcsv($file, [
             'Tanggal',
-            'Transaction ID',
-            'User',
-            'Region',
-            'Role Type',
-            'Amount',
-            'Percentage',
-            'Status',
-            'Released At'
+            'ID Transaksi',
+            'Invoice Number',
+            'Plat Nomor',
+            'Mobil',
+            'Status Transaksi',
+            'Status Inspeksi',
+            'Penerima',
+            'Email Penerima',
+            'Wilayah',
+            'Kode Wilayah',
+            'Jenis Role',
+            'Nominal (Rp)',
+            'Persentase',
+            'Status Distribusi',
+            'Waktu Diberikan',
+            'Diberikan Oleh',
+            'Email Diberikan Oleh',
+            'Catatan'
         ]);
 
         foreach ($distributions as $distribution) {
+            $statusTransaksi = $this->translateStatus($distribution->transaction->status ?? '-');
+            $statusInspeksi = $this->translateStatus($distribution->transaction->inspection->status ?? '-');
+            
             fputcsv($file, [
-                $distribution->created_at->format('Y-m-d H:i'),
-                $distribution->transaction ? $distribution->transaction->id : 'N/A',
-                $distribution->user ? $distribution->user->name : 'N/A',
-                $distribution->region ? $distribution->region->name : 'N/A',
-                $distribution->role_type,
-                $distribution->amount, // biar Excel bisa hitung
+                $distribution->created_at->format('d-m-Y H:i:s'),
+                $distribution->transaction_id,
+                $distribution->transaction->invoice_number ?? '-',
+                $distribution->transaction->inspection->plate_number ?? '-',
+                $distribution->transaction->inspection->car_name ?? '-',
+                $statusTransaksi,
+                $statusInspeksi,
+                $distribution->user->name ?? '-',
+                $distribution->user->email ?? '-',
+                $distribution->region->name ?? '-',
+                $distribution->region->code ?? '-',
+                ucfirst($distribution->role_type),
+                $distribution->amount,
                 $distribution->percentage . '%',
-                $distribution->is_released ? 'Released' : 'Pending',
-                $distribution->released_at ? $distribution->released_at->format('Y-m-d H:i') : ''
+                $distribution->is_released ? 'Diberikan' : 'Menunggu',
+                $distribution->released_at ? $distribution->released_at->format('d-m-Y H:i:s') : '-',
+                $distribution->released->name ?? '-',
+                $distribution->released->email ?? '-',
+                $distribution->notes ?? '-'
             ]);
         }
 
         fclose($file);
     };
 
-    return response()->stream($callback, 200, $headers);
+    return response()->streamDownload($callback, $filename, $headers);
 }
 
+/**
+ * Helper untuk mentranslasikan status
+ */
+private function translateStatus($status)
+{
+    $statusMap = [
+        // Inspection
+        'draft' => 'Dibuat',
+        'in_progress' => 'Dalam Proses',
+        'pending' => 'Menunggu',
+        'pending_review' => 'Menunggu Review',
+        'approved' => 'Disetujui',
+        'rejected' => 'Ditolak',
+        'revision' => 'Revisi',
+        'completed' => 'Selesai',
+        'cancelled' => 'Dibatalkan',
+        
+        // Transaction
+        'paid' => 'Sudah di bayar',
+        'failed' => 'Gagal',
+        'refunded' => 'Dikembalikan',
+        'expired' => 'Kadaluarsa',
+        'released' => 'Diberikan',
+        'unpaid' => 'Belum Bayar'
+    ];
+
+    return $statusMap[$status] ?? $status;
+}
 
 
     /**

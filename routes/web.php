@@ -337,21 +337,28 @@ Route::middleware([
     Route::get('/customers/search', [InspectionDataController::class, 'getCustomers'])
         ->name('customers.search');
 
-    Route::prefix('withdrawals')->group(function () {
-        Route::get('/pending-distributions', [WithdrawalController::class, 'getPendingDistributions']);
-        Route::post('/create', [WithdrawalController::class, 'createWithdrawal']);
-        Route::get('/my-withdrawals', [WithdrawalController::class, 'getMyWithdrawals']);
-        Route::get('/statistics', [WithdrawalController::class, 'getStatistics']);
+    // ========================= WITHDRAWAL ROUTES =========================
+        // Routes untuk user biasa
+        // Pengajuan penarikan
+        Route::get('/withdrawal/create', [WithdrawalController::class, 'create'])->name('withdrawal.create');
+        Route::post('/withdrawal', [WithdrawalController::class, 'store'])->name('withdrawal.store');
         
-        // Admin routes
-        Route::middleware(['auth',])->group(function () {
-            Route::get('/requests', [WithdrawalController::class, 'getWithdrawalRequests']);
-            Route::get('/{id}', [WithdrawalController::class, 'getWithdrawalDetail']);
-            Route::post('/{id}/process', [WithdrawalController::class, 'processWithdrawal']);
-            Route::post('/{id}/complete', [WithdrawalController::class, 'completeWithdrawal']);
-    });
-});
+        // Riwayat penarikan
+        Route::get('/withdrawal/history', [WithdrawalController::class, 'history'])->name('withdrawals.history');
+        
+        Route::get('/withdrawal/{withdrawal}/show', [WithdrawalController::class, 'show'])->name('withdrawal.show');
+        // Konfirmasi penerimaan dana
+        Route::post('/withdrawal/{withdrawal}/complete', [WithdrawalController::class, 'complete'])->name('withdrawal.complete');
+        
+        // Download bukti transfer
+        Route::get('/withdrawal/{withdrawal}/download-proof', [WithdrawalController::class, 'downloadProof'])->name('withdrawal.download-proof');
 
-        
+    // Routes untuk admin/approver
+        Route::get('/withdrawals', [WithdrawalController::class, 'index'])->name('withdrawals.index');
+        Route::get('/withdrawal/{withdrawal}', [WithdrawalController::class, 'process'])->name('withdrawal.process');
+        Route::post('/withdrawal/{withdrawal}/approve', [WithdrawalController::class, 'approve'])->name('withdrawal.approve');
+        Route::post('/withdrawal/{withdrawal}/reject', [WithdrawalController::class, 'reject'])->name('withdrawal.reject');
+
+            
 });
 

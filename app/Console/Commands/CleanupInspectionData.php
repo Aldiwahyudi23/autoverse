@@ -55,13 +55,17 @@ class CleanupInspectionData extends Command
                     $hasResults = DB::table('inspection_results')
                         ->where('inspection_id', $inspection->id)
                         ->exists();
-
-                    $hasImages = InspectionImage::where('inspection_id', $inspection->id)
+                        
+                        $hasImages = InspectionImage::where('inspection_id', $inspection->id)
                         ->whereHas('point', function($q){
                             $q->whereNotIn('name', ['Depan Kanan']);
-                        })
-                        ->exists();
-
+                            })
+                            ->exists();
+                            
+                            // Cek apakah ada result atau image
+                            $hasEstimasi = DB::table('repair_estimations')
+                                ->where('inspection_id', $inspection->id)
+                                ->exists();
                     // // Jika tidak ada data, lewati
                     // if (!$hasResults && !$hasImages) {
                     //     continue;
@@ -79,6 +83,13 @@ class CleanupInspectionData extends Command
                         // Hapus results
                         if ($hasResults) {
                             DB::table('inspection_results')
+                                ->where('inspection_id', $inspection->id)
+                                ->delete();
+                        }
+
+                        // Hapus estimasi
+                        if ($hasEstimasi) {
+                            DB::table('repair_estimations')
                                 ->where('inspection_id', $inspection->id)
                                 ->delete();
                         }
