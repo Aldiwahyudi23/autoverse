@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Finance\TransactionDistribution;
 use App\Models\Finance\Withdrawal;
+use App\Models\Team\Region;
+use App\Models\Team\RegionTeam;
+use App\Models\User;
 use App\Services\FonnteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,9 +31,9 @@ class WithdrawalController extends Controller
     public function create()
     {
         // Hanya user biasa yang bisa mengakses
-        if (Auth::user()->hasRole(['Admin', 'coordinator', 'admin_plann'])) {
-            return redirect()->route('dashboard')->with('error', 'Hanya user biasa yang dapat mengajukan penarikan.');
-        }
+        // if (Auth::user()->hasRole(['Admin', 'coordinator', 'admin_plann'])) {
+        //     return redirect()->route('dashboard')->with('error', 'Hanya user biasa yang dapat mengajukan penarikan.');
+        // }
 
         // Ambil distribusi yang belum di-release dan belum ada withdrawal_id
         $distributions = TransactionDistribution::where('user_id', Auth::id())
@@ -155,8 +158,14 @@ class WithdrawalController extends Controller
             ->orderBy('requested_at', 'desc')
             ->get();
 
+        $withdrawals_approve = Withdrawal::with(['user', 'processor', 'transactionDistributions.transaction'])
+            ->whereIn('status', [Withdrawal::STATUS_APPROVED])
+            ->orderBy('requested_at', 'desc')
+            ->get();
+
         return Inertia::render('FrontEnd/Menu/Home/Finance/Withdrawal/Index', [
             'withdrawals' => $withdrawals,
+            'withdrawals_approve' => $withdrawals_approve,
             'paymentMethods' => Withdrawal::getPaymentMethodOptions(),
             'statusOptions' => Withdrawal::getStatusOptions(),
         ]);
@@ -412,34 +421,139 @@ class WithdrawalController extends Controller
     /**
      * Display withdrawal history for user
      */
-    public function history(Request $request)
-    {
-        $query = Withdrawal::with(['processor', 'transactionDistributions'])
-            ->where('user_id', Auth::id());
+    // public function history(Request $request)
+    // {
+    //     $query = Withdrawal::with(['processor', 'transactionDistributions'])
+    //         ->where('user_id', Auth::id());
 
-        // Filter by year
-        if ($request->has('year') && $request->year) {
-            $query->whereYear('requested_at', $request->year);
+    //     // Filter by year
+    //     if ($request->has('year') && $request->year) {
+    //         $query->whereYear('requested_at', $request->year);
+    //     }
+
+    //     // Filter by month
+    //     if ($request->has('month') && $request->month) {
+    //         $query->whereMonth('requested_at', $request->month);
+    //     }
+
+    //     // Filter by status
+    //     if ($request->has('status') && $request->status) {
+    //         $query->where('status', $request->status);
+    //     }
+
+    //     $withdrawals = $query->orderBy('requested_at', 'desc')->get();
+
+    //     return Inertia::render('FrontEnd/Menu/Home/Finance/Withdrawal/History', [
+    //         'withdrawals' => $withdrawals,
+    //         'filters' => $request->only(['year', 'month', 'status']),
+    //     ]);
+    // }
+
+public function history(Request $request)
+{
+    $user = $request->user();
+    
+    // Cek role admin/coordinator
+    $isAdminOrCoordinator = $user->hasAnyRole(['Admin', 'coordinator', 'admin_plann']);
+    
+    // Filters
+    $filters = $request->only(['year', 'month', 'status', 'region_id', 'user_id']);
+    
+    // Ambil region_id default dari user login (jika bukan admin)
+    $defaultRegionId = RegionTeam::where('user_id', $user->id)->value('region_id');
+    $defaultRegion = Region::find($defaultRegionId);
+    
+    // [ADMIN/COORDINATOR] Jika admin/coordinator, ambil region dari filter atau default
+    if ($isAdminOrCoordinator) {
+        $selectedRegionId = $filters['region_id'] ?? null;
+        $selectedRegion = Region::find($selectedRegionId);
+        
+        // Ambil semua region untuk dropdown
+        $allRegions = Region::all(['id', 'name']);
+        
+        // Ambil semua user_id sesuai region / semua kalau region kosong
+        $userIdsQuery = RegionTeam::query()
+            ->when($selectedRegionId && $selectedRegionId !== 'all', 
+                fn($q) => $q->where('region_id', $selectedRegionId));
+        
+        $userIds = $userIdsQuery->pluck('user_id');
+        
+        // Jika ada filter user_id, batasi ke user tersebut
+        if (!empty($filters['user_id'])) {
+            $userIds = collect([$filters['user_id']]);
         }
-
-        // Filter by month
-        if ($request->has('month') && $request->month) {
-            $query->whereMonth('requested_at', $request->month);
+        
+        // Jika userIds kosong (misalnya region dipilih tapi tidak ada user), beri array kosong
+        if ($userIds->isEmpty()) {
+            $userIds = collect([0]); // Akan menghasilkan query whereIn dengan [0]
         }
-
-        // Filter by status
-        if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
-        }
-
-        $withdrawals = $query->orderBy('requested_at', 'desc')->get();
-
-        return Inertia::render('FrontEnd/Menu/Home/Finance/Withdrawal/History', [
-            'withdrawals' => $withdrawals,
-            'filters' => $request->only(['year', 'month', 'status']),
-        ]);
+        
+        // Ambil users untuk dropdown berdasarkan region yang dipilih
+        $usersForFilter = User::query()
+            ->when($selectedRegionId && $selectedRegionId !== 'all', function($q) use ($selectedRegionId) {
+                $q->whereHas('regionTeams', function($q2) use ($selectedRegionId) {
+                    $q2->where('region_id', $selectedRegionId);
+                });
+            })
+            ->select('id', 'name', 'email')
+            ->get();
+        
+        // Ambil tahun-tahun yang tersedia dari data withdrawals berdasarkan user_ids
+        $availableYears = Withdrawal::whereIn('user_id', $userIds)
+            ->selectRaw('YEAR(requested_at) as year')
+            ->distinct()
+            ->orderBy('year', 'desc')
+            ->pluck('year');
+            
+    } else {
+        // Regular user: hanya bisa melihat data sendiri
+        $allRegions = collect([]);
+        $selectedRegion = $defaultRegion;
+        $userIds = collect([$user->id]); // Hanya user sendiri
+        $usersForFilter = collect([]);
+        
+        // Untuk regular user, ambil tahun dari data mereka sendiri
+        $availableYears = Withdrawal::where('user_id', $user->id)
+            ->selectRaw('YEAR(requested_at) as year')
+            ->distinct()
+            ->orderBy('year', 'desc')
+            ->pluck('year');
     }
-
+    
+    // Query utama withdrawals dengan filter user_ids
+    $query = Withdrawal::with(['processor', 'transactionDistributions', 'user'])
+        ->whereIn('user_id', $userIds);
+    
+    // Common filters (for all users)
+    if (!empty($filters['year'])) {
+        $query->whereYear('requested_at', $filters['year']);
+    }
+    
+    if (!empty($filters['month'])) {
+        $query->whereMonth('requested_at', $filters['month']);
+    }
+    
+    if (!empty($filters['status'])) {
+        $query->where('status', $filters['status']);
+    }
+    
+    // Get withdrawals
+    $withdrawals = $query->orderBy('requested_at', 'desc')->get();
+    
+    return Inertia::render('FrontEnd/Menu/Home/Finance/Withdrawal/History', [
+        'withdrawals' => $withdrawals,
+        'filters' => $filters,
+        'is_admin_or_coordinator' => $isAdminOrCoordinator,
+        'regions' => $isAdminOrCoordinator ? $allRegions : [],
+        'all_users' => $usersForFilter,
+        'selected_region' => $selectedRegion ? [
+            'id' => $selectedRegion->id,
+            'name' => $selectedRegion->name
+        ] : null,
+        'available_years' => $availableYears,
+        'current_user_id' => $user->id, // Tambahkan current user ID
+    ]);
+}
     /**
      * Download proof file
      */

@@ -1331,18 +1331,48 @@ private function applyInspectionUpdates(Inspection $inspection, $updates)
             $id = Crypt::decrypt($inspection);
             $inspection = Inspection::findOrFail($id);
             
+            // Cek apakah ada transaksi yang sudah paid
+            $hasPaidTransactions = $inspection->transactions()
+                ->where('status', Transaction::STATUS_PAID)
+                ->exists();
+            
+            if ($hasPaidTransactions) {
+                return redirect()->back()
+                    ->with('error', 'Tidak dapat membatalkan inspeksi karena sudah ada transaksi yang dibayar.')
+                    ->withInput();
+            }
+            
+            // Cek apakah ada transaksi pending lainnya
+            $pendingTransactionsCount = $inspection->transactions()
+                ->where('status', Transaction::STATUS_PENDING)
+                ->count();
+            
             // Update status dan simpan alasan
             $inspection->update([
                 'status' => 'cancelled',
                 'notes' => $request->reason
             ]);
 
-             $inspection->addLog('cancelled',description:  'Membatalkan Inspeksi');
+            // Jika ada transaksi pending, update status mereka menjadi expired
+            if ($pendingTransactionsCount > 0) {
+                $inspection->transactions()
+                    ->where('status', Transaction::STATUS_PENDING)
+                    ->update([
+                        'status' => Transaction::STATUS_EXPIRED,
+                        'notes' => 'Transaksi kadaluarsa karena inspeksi dibatalkan. Alasan: ' . $request->reason
+                    ]);
+            }
+
+            $inspection->addLog('cancelled', description: 'Membatalkan Inspeksi');
             
             return redirect()->back()->with('success', 'Inspeksi berhasil dibatalkan');
             
         } catch (DecryptException $e) {
             abort(404);
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage())
+                ->withInput();
         }
     }
 

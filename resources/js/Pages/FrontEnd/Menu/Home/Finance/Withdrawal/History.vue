@@ -6,12 +6,12 @@
             <!-- Header -->
             <div class="mb-6">
                 <h1 class="text-2xl font-bold text-gray-900">Riwayat Penarikan Dana</h1>
-                <p class="text-gray-600 mt-2">Daftar semua pengajuan penarikan Anda</p>
+                <p class="text-gray-600 mt-2">Daftar semua pengajuan penarikan {{ is_admin_or_coordinator ? 'sistem' : 'Anda' }}</p>
             </div>
 
             <!-- Filter Section -->
             <div class="mb-6 bg-white shadow rounded-lg p-4">
-                <div class="grid grid-cols-3 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <!-- Filter Tahun -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -62,6 +62,37 @@
                             <option value="rejected">Ditolak</option>
                         </select>
                     </div>
+
+                    <!-- Filter Region/Wilayah (Hanya untuk Admin/Coordinator) -->
+                    <div v-if="is_admin_or_coordinator">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Wilayah
+                        </label>
+                        <select v-model="selectedRegion" 
+                                @change="onRegionChange"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Semua Wilayah</option>
+                            <option value="all">Semua Wilayah</option>
+                            <option v-for="region in regions" :key="region.id" :value="region.id">
+                                {{ region.name }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Filter User (Hanya untuk Admin/Coordinator) -->
+                    <div v-if="is_admin_or_coordinator">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            User
+                        </label>
+                        <select v-model="selectedUser" 
+                                @change="applyFilters"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Semua User</option>
+                            <option v-for="user in all_users" :key="user.id" :value="user.id">
+                                {{ user.name }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Reset Filter Button -->
@@ -74,7 +105,7 @@
             </div>
 
             <!-- Info Summary -->
-            <div v-if="filteredWithdrawals.length > 0" class="mb-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div v-if="filteredWithdrawals.length > 0" class="mb-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <!-- Total Withdrawals -->
                 <div class="bg-white shadow rounded-lg p-4">
                     <div class="flex items-center">
@@ -121,6 +152,23 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Pending Count -->
+                <div class="bg-white shadow rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-yellow-100 rounded-md p-3">
+                            <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Pending</p>
+                            <p class="text-lg font-semibold text-gray-900">
+                                {{ pendingCount }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Table -->
@@ -140,12 +188,12 @@
                         </button>
                     </template>
                     <template v-else>
-                        <svg class="h-12 w-12 mx-auto text-gray-400" xmlns="http://www.w3.org2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg class="h-12 w-12 mx-auto text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <h3 class="mt-2 text-sm font-medium text-gray-900">Belum ada riwayat penarikan</h3>
                         <p class="mt-1 text-sm text-gray-500">
-                            Anda belum melakukan pengajuan penarikan.
+                            {{ is_admin_or_coordinator ? 'Belum ada data penarikan di sistem' : 'Anda belum melakukan pengajuan penarikan.' }}
                         </p>
                     </template>
                 </div>
@@ -154,6 +202,10 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
+                                <!-- Kolom User hanya untuk Admin/Coordinator -->
+                                <th v-if="is_admin_or_coordinator" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    User
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
                                 </th>
@@ -179,6 +231,26 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <tr v-for="withdrawal in filteredWithdrawals" :key="withdrawal.id">
+                                <!-- Kolom User hanya untuk Admin/Coordinator -->
+                                <td v-if="is_admin_or_coordinator" class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <span class="text-blue-600 font-medium">
+                                                    {{ withdrawal.user?.name?.charAt(0) || 'U' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">
+                                                {{ withdrawal.user?.name || 'Unknown User' }}
+                                            </div>
+                                            <div class="text-xs text-gray-500">
+                                                {{ withdrawal.user?.email || '' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
                                         <button @click="goToWithdrawalDetail(withdrawal.id)"
@@ -215,23 +287,25 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button v-if="withdrawal.status === 'approved'" 
-                                            @click="confirmComplete(withdrawal)"
-                                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
-                                        <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                        </svg>
-                                        Konfirmasi Diterima
-                                    </button>
-                                    <!-- <Link v-else-if="withdrawal.file_path" 
-                                          :href="route('withdrawal.download-proof', withdrawal.id)"
-                                          target="_blank"
-                                          class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                        <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                        </svg>
-                                        Bukti Transfer
-                                    </Link> -->
+                                    <!-- Tombol Konfirmasi Diterima -->
+                                    <template v-if="withdrawal.status === 'approved'">
+                                        <button v-if="withdrawal.user_id === current_user_id"
+                                                @click="confirmComplete(withdrawal)"
+                                                class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
+                                            <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                            </svg>
+                                            Konfirmasi Diterima
+                                        </button>
+                                        <button v-else
+                                                disabled
+                                                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
+                                            <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                                            </svg>
+                                            Menunggu Diterima
+                                        </button>
+                                    </template>
                                     <span v-else class="text-gray-400 text-xs">-</span>
                                 </td>
                             </tr>
@@ -243,7 +317,7 @@
                         <div class="flex justify-between items-center">
                             <div class="text-sm text-gray-600">
                                 Menampilkan <span class="font-medium">{{ filteredWithdrawals.length }}</span> data
-                                <span v-if="selectedYear || selectedMonth || selectedStatus">
+                                <span v-if="isFiltered">
                                     (difilter)
                                 </span>
                             </div>
@@ -259,8 +333,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
+import { Head, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
@@ -271,6 +345,26 @@ const props = defineProps({
     filters: {
         type: Object,
         default: () => ({})
+    },
+    is_admin_or_coordinator: {
+        type: Boolean,
+        default: false
+    },
+    regions: {
+        type: Array,
+        default: () => []
+    },
+    all_users: {
+        type: Array,
+        default: () => []
+    },
+    available_years: {
+        type: Array,
+        default: () => []
+    },
+    current_user_id: {
+        type: Number,
+        required: true
     }
 })
 
@@ -278,22 +372,14 @@ const props = defineProps({
 const selectedYear = ref(props.filters.year || '')
 const selectedMonth = ref(props.filters.month || '')
 const selectedStatus = ref(props.filters.status || '')
+const selectedRegion = ref(props.filters.region_id || '')
+const selectedUser = ref(props.filters.user_id || '')
 
 // Month options
 const monthOptions = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ]
-
-// Extract available years from data
-const availableYears = computed(() => {
-    const years = new Set()
-    props.withdrawals.forEach(withdrawal => {
-        const year = new Date(withdrawal.requested_at).getFullYear()
-        years.add(year)
-    })
-    return Array.from(years).sort((a, b) => b - a)
-})
 
 // Check if month is available for selected year
 const isMonthAvailable = (month) => {
@@ -333,6 +419,11 @@ const filteredWithdrawals = computed(() => {
         result = result.filter(withdrawal => withdrawal.status === selectedStatus.value)
     }
 
+    // Filter by user (only for admin/coordinator)
+    if (props.is_admin_or_coordinator && selectedUser.value) {
+        result = result.filter(withdrawal => withdrawal.user_id == selectedUser.value)
+    }
+
     // Sort by date (newest first)
     return result.sort((a, b) => new Date(b.requested_at) - new Date(a.requested_at))
 })
@@ -349,9 +440,16 @@ const completedCount = computed(() => {
     return filteredWithdrawals.value.filter(w => w.status === 'completed').length
 })
 
+// Count pending withdrawals
+const pendingCount = computed(() => {
+    return filteredWithdrawals.value.filter(w => w.status === 'pending').length
+})
+
 // Check if any filter is active
 const isFiltered = computed(() => {
-    return selectedYear.value || selectedMonth.value || selectedStatus.value
+    const baseFilters = selectedYear.value || selectedMonth.value || selectedStatus.value
+    if (!props.is_admin_or_coordinator) return baseFilters
+    return baseFilters || selectedRegion.value || selectedUser.value
 })
 
 // Apply filters
@@ -361,7 +459,13 @@ const applyFilters = () => {
     if (selectedYear.value) filters.year = selectedYear.value
     if (selectedMonth.value) filters.month = selectedMonth.value
     if (selectedStatus.value) filters.status = selectedStatus.value
-
+    
+    // Only add admin filters if user is admin/coordinator
+    if (props.is_admin_or_coordinator) {
+        if (selectedRegion.value) filters.region_id = selectedRegion.value
+        if (selectedUser.value) filters.user_id = selectedUser.value
+    }
+    
     router.get(route('withdrawals.history'), filters, {
         preserveState: true,
         preserveScroll: true,
@@ -369,11 +473,23 @@ const applyFilters = () => {
     })
 }
 
+// Handle region change
+const onRegionChange = () => {
+    // Reset user when region changes
+    selectedUser.value = ''
+    applyFilters()
+}
+
 // Reset all filters
 const resetFilters = () => {
     selectedYear.value = ''
     selectedMonth.value = ''
     selectedStatus.value = ''
+    
+    if (props.is_admin_or_coordinator) {
+        selectedRegion.value = ''
+        selectedUser.value = ''
+    }
     
     router.get(route('withdrawals.history'), {}, {
         preserveState: true,

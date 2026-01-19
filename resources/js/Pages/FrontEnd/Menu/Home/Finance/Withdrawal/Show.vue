@@ -18,24 +18,43 @@
             </div>
 
             <!-- Alert Status -->
-            <div v-if="withdrawal.status === 'approved'" class="mb-6 bg-green-50 border-l-4 border-green-500 p-4">
-                <div class="flex">
+            <div v-if="withdrawal.status === 'approved'" class="mb-6" 
+                 :class="is_owner ? 'bg-green-50 border-l-4 border-green-500' : 'bg-yellow-50 border-l-4 border-yellow-500'">
+                <div class="flex p-4">
                     <div class="flex-shrink-0">
-                        <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <svg v-if="is_owner" class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <svg v-else class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
                         </svg>
                     </div>
                     <div class="ml-3">
-                        <p class="text-sm font-medium text-green-800">
+                        <p v-if="is_owner" class="text-sm font-medium text-green-800">
+                            Dana penarikan sudah disetujui dan sedang dalam proses pengiriman
+                        </p>
+                        <p v-else class="text-sm font-medium text-yellow-800">
                             Dana penarikan sudah disetujui dan sedang dalam proses pengiriman
                         </p>
                         <div class="mt-2">
-                            <button @click="confirmComplete" 
+                            <!-- Tombol untuk pemilik data -->
+                            <button v-if="is_owner"
+                                    @click="confirmComplete" 
                                     class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                                 <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                 </svg>
                                 Konfirmasi Dana Diterima
+                            </button>
+                            
+                            <!-- Tombol untuk user lain (disabled) -->
+                            <button v-else
+                                    disabled
+                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
+                                <svg class="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                                </svg>
+                                Menunggu Diterima
                             </button>
                         </div>
                     </div>
@@ -52,7 +71,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-yellow-800">
-                            Pengajuan penarikan Anda sedang menunggu konfirmasi admin
+                            Pengajuan penarikan {{ is_owner ? 'Anda' : withdrawal.user?.name }} sedang menunggu konfirmasi admin
                         </p>
                     </div>
                 </div>
@@ -67,7 +86,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-red-800">
-                            Pengajuan penarikan Anda ditolak
+                            Pengajuan penarikan {{ is_owner ? 'Anda' : withdrawal.user?.name }} ditolak
                         </p>
                     </div>
                 </div>
@@ -114,6 +133,14 @@
                             <p class="mt-1 text-sm font-medium text-gray-900">
                                 {{ withdrawal.processor?.name }}
                             </p>
+                        </div>
+                        <!-- Informasi User (hanya untuk admin) -->
+                        <div v-if="!is_owner && withdrawal.user">
+                            <label class="text-sm font-medium text-gray-500">Pemilik Penarikan</label>
+                            <p class="mt-1 text-sm font-medium text-gray-900">
+                                {{ withdrawal.user?.name }}
+                            </p>
+                            <p class="text-xs text-gray-500">{{ withdrawal.user?.email }}</p>
                         </div>
                     </div>
                 </div>
@@ -331,14 +358,28 @@
                     Kembali ke Riwayat
                 </Link>
                 
-                <button v-if="withdrawal.status === 'approved'" 
-                        @click="confirmComplete"
-                        class="inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
-                    Konfirmasi Dana Diterima
-                </button>
+                <!-- Tombol Konfirmasi Dana Diterima -->
+                <template v-if="withdrawal.status === 'approved'">
+                    <!-- Tombol aktif untuk pemilik data -->
+                    <button v-if="is_owner"
+                            @click="confirmComplete"
+                            class="inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        Konfirmasi Dana Diterima
+                    </button>
+                    
+                    <!-- Tombol disabled untuk user lain -->
+                    <button v-else
+                            disabled
+                            class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
+                        <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                        </svg>
+                        Menunggu Diterima
+                    </button>
+                </template>
             </div>
         </div>
     </AppLayout>
@@ -357,7 +398,20 @@ const props = defineProps({
     paymentMethods: {
         type: Object,
         required: true
+    },
+    is_owner: {
+        type: Boolean,
+        required: true
+    },
+    current_user_id: {
+        type: Number,
+        required: true
     }
+})
+
+// Computed property untuk status badge
+const statusBadgeClass = computed(() => {
+    return getStatusBadgeClass(props.withdrawal.status)
 })
 
 // Helper functions

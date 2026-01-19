@@ -43,7 +43,7 @@ class HomeController extends Controller
             });
 
         $pengajuan = Withdrawal::with(['user', 'processor', 'transactionDistributions.transaction'])
-            ->whereIn('status', [Withdrawal::STATUS_PENDING, Withdrawal::STATUS_PROCESSING, Withdrawal::STATUS_APPROVED])
+            ->whereIn('status', [Withdrawal::STATUS_PENDING, Withdrawal::STATUS_PROCESSING])
             ->orderBy('requested_at', 'desc')
             ->get();
 

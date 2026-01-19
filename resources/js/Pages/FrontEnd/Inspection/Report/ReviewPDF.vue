@@ -841,13 +841,13 @@ const initialZoom = ref(1)
 // Role checking
 const userRoles = computed(() => page.props.global?.has_roles || [])
 const canViewRepairEstimation = computed(() => {
-  return userRoles.value.includes('quality_control') || userRoles.value.includes('qc')
+  return userRoles.value.includes('quality_control') || userRoles.value.includes('Admin')
 })
 const canEditEstimations = computed(() => {
-  return (userRoles.value.includes('quality_control') || userRoles.value.includes('qc')) && inspection.value.status === 'pending_review'
+  return (userRoles.value.includes('quality_control') || userRoles.value.includes('Admin')) && inspection.value.status === 'pending_review'
 })
 const canApproveReport = computed(() => {
-  return (userRoles.value.includes('quality_control') || userRoles.value.includes('qc')) && inspection.value.status === 'pending_review'
+  return (userRoles.value.includes('quality_control') || userRoles.value.includes('Admin')) && inspection.value.status === 'pending_review'
 })
 
 // Check if current image has bad status

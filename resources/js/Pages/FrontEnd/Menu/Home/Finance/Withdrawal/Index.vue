@@ -185,6 +185,9 @@ const props = defineProps({
         type: Array,
         required: true
     },
+    withdrawals_approve: {
+        type: Array,
+    },
     paymentMethods: {
         type: Object,
         required: true
