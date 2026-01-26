@@ -939,18 +939,27 @@ const allCategories = computed(() => {
 const activeCategory = ref(allCategories.value[0]);
 const activeIndex = ref(0);
 
+// Di script setup
+const preloadedMenus = computed(() => {
+  const menus = {};
+  
+  // Preload semua menu data
+  props.appMenus.forEach(menu => {
+    menus[menu.id] = {
+      ...menu,
+      points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
+    };
+  });
+  
+  return menus;
+});
+
 // Ubah activeMenuData
 const activeMenuData = computed(() => {
   if (activeCategory.value === 'vehicle' || activeCategory.value === 'conclusion') {
     return null;
   }
-  const menu = props.appMenus.find(m => String(m.id) === activeCategory.value);
-  if (!menu) return null;
-
-  return {
-    ...menu,
-    points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
-  };
+  return preloadedMenus.value[activeCategory.value] || null;
 });
 
 // const activeMenuData = computed(() => {

@@ -2,7 +2,10 @@
 
 use App\Http\Controllers\Api\RegionController;
 use App\Http\Controllers\DataCar\CarController;
+use App\Http\Controllers\FormInspect\InspectController;
+use App\Http\Controllers\FormInspect\InspectionController;
 use App\Http\Controllers\Inspection\CarDataController;
+use App\Http\Controllers\VehicleApiController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -49,3 +52,23 @@ Route::get('/car-details/{typeId}/{capacity}/{year}/{transmission}/{fuel}/{perio
 
 // Regions API
 Route::get('/regions/active-with-teams', [RegionController::class, 'getActiveRegionsWithTeams']);
+
+// Vehicle APIs
+    Route::prefix('vehicle')->group(function () {
+        Route::post('/validate-plate', [VehicleApiController::class, 'validatePlateNumber']);
+        Route::get('/search-cars', [VehicleApiController::class, 'searchCars']);
+        Route::get('/{id}', [VehicleApiController::class, 'getCarDetails']);
+    });
+
+
+
+Route::prefix('form-inspection')->group(function () {
+        // API untuk pindah menu
+        Route::get('/{inspection}/menu/{menu}', [InspectController::class, 'getMenuData']);
+        
+        // API untuk validasi real-time
+        Route::post('/validate/{point}', [InspectController::class, 'validateField']);
+        
+        // API untuk save data
+        Route::post('/{inspection}/save', [InspectController::class, 'savePoint']);
+    });

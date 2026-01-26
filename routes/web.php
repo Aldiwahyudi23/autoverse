@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\DataCar\CarController;
 use App\Http\Controllers\Finance\TransactionController;
 use App\Http\Controllers\Finance\WithdrawalController;
+use App\Http\Controllers\FormInspect\InspectController;
+use App\Http\Controllers\FormInspect\InspectionController as FormInspectInspectionController;
 use App\Http\Controllers\Inspection\InspectionController;
 use App\Http\Controllers\Inspection\RepairEstimationController;
 use App\Http\Controllers\InspectionDataController;
@@ -359,6 +361,9 @@ Route::middleware([
         Route::post('/withdrawal/{withdrawal}/approve', [WithdrawalController::class, 'approve'])->name('withdrawal.approve');
         Route::post('/withdrawal/{withdrawal}/reject', [WithdrawalController::class, 'reject'])->name('withdrawal.reject');
 
-            
+  
 });
 
+
+        Route::get('/start/{inspection}', [InspectController::class, 'start'])
+            ->name('inspections.start.bentar');

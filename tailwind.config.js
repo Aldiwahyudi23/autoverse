@@ -17,8 +17,50 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+        colors: {
+                'inspection': {
+                'primary': '#1E40AF',
+                'secondary': '#3B82F6',
+                'success': '#10B981',
+                'warning': '#F59E0B',
+                'danger': '#EF4444',
+                }
+            },
+        animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
         },
     },
 
     plugins: [forms, typography],
 };
+
+
+// tailwind.config.js
+module.exports = {
+  content: [
+    './resources/**/*.blade.php',
+    './resources/**/*.js',
+    './resources/**/*.vue',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        'inspection': {
+          'primary': '#1E40AF',
+          'secondary': '#3B82F6',
+          'success': '#10B981',
+          'warning': '#F59E0B',
+          'danger': '#EF4444',
+        }
+      },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      }
+    },
+  },
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+  ],
+}

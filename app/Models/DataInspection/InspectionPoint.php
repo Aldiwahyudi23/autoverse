@@ -68,6 +68,10 @@ class InspectionPoint extends Model
     {
         return $this->hasMany(InspectionResult::class, 'point_id', 'id');
     }
+    public function menu_point()
+    {
+        return $this->hasMany(MenuPoint::class, 'inspection_point_id', 'id');
+    }
 
     public function images()
     {

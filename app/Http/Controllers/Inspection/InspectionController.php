@@ -22,6 +22,11 @@ use App\Models\Team\Region;
 use App\Models\Team\RegionTeam;
 use App\Models\User;
 use App\Services\FonnteService;
+use App\Services\Inspection\CompatibilityService;
+use App\Services\Inspection\CompletionService;
+use App\Services\Inspection\ImageCompressionService;
+use App\Services\Inspection\InspectionDataService;
+use App\Services\Inspection\TriggerService;
 use App\Services\InspectionmPdfGenerator;
 use App\Services\InspectionPdfGenerator;
 use App\Services\NativeImageCompressor;
@@ -50,10 +55,15 @@ class InspectionController extends Controller
 
     protected $fonnteService;
 
-    public function __construct(FonnteService $fonnteService)
+    public function __construct(
+        FonnteService $fonnteService,
+        )
     {
         $this->fonnteService = $fonnteService;
     }
+
+
+
     /**
      * Display a listing of the resource.
      */
@@ -61,6 +71,8 @@ class InspectionController extends Controller
     {
         //
     }
+
+
 
     /**
      * Show the form for creating a new resource.
@@ -96,10 +108,8 @@ class InspectionController extends Controller
         ]);
     }
     
-    /**
-     * Store a newly created resource in storage.
-   
-    */
+
+
     public function start($inspection)
     {
         try {  
@@ -107,7 +117,7 @@ class InspectionController extends Controller
             $id = Crypt::decrypt($inspection);
             $inspection = Inspection::findOrFail($id);
         // Authorization check
-             if ($inspection->user_id !== Auth::id() && !auth()->user()->hasRole('quality_control'))
+             if ($inspection->user_id !== Auth::id() && !auth()->user()->hasRole('quality_control') && !auth()->user()->hasRole('Admin'))
                 {
                     return redirect()->route('job.index')->with('error','Maaf sudah tidak ada akses untuk melanjutkan Inspeksi');
                 }
@@ -606,7 +616,7 @@ public function deleteResultImage(Request $request)
 }
 
 
-    public function finalSubmit(Request $request, $id)
+    public function finalSubmits(Request $request, $id)
     {
         // Cari inspeksi berdasarkan ID
         $inspection = Inspection::findOrFail($id);

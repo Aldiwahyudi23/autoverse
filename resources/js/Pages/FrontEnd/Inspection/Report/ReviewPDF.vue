@@ -1134,6 +1134,19 @@ const findRelatedInfo = (pointName, pointData) => {
   const relatedInfo = {}
 
   // Jika point adalah "No Fisik Mesin", cari "No Mesin"
+  if (pointName === 'Instrumen Cluster') {
+    const mesinPoint = props.menu_points.find(p =>
+      p.inspection_point?.name === 'Jarak Tempuh (KM)'
+    )
+    if (mesinPoint && hasResult(mesinPoint)) {
+      relatedInfo.mesin = {
+        name: 'KM',
+        value: mesinPoint.inspection_point.results[0].note || '-'
+      }
+    }
+  }
+
+  // Jika point adalah "No Fisik Mesin", cari "No Mesin"
   if (pointName === 'No Fisik Mesin') {
     const mesinPoint = props.menu_points.find(p =>
       p.inspection_point?.name === 'No Mesin'
@@ -1161,6 +1174,9 @@ const findRelatedInfo = (pointName, pointData) => {
 
   // Jika point adalah "STNK", tampilkan No Mesin, No Rangka, Pajak Tahunan, dan Pajak 5 Tahunan
   if (pointName === 'STNK') {
+
+    const nameCar = props.inspection.car?.brand?.name + ' ' + props.inspection.car?.model?.name + ' ' + props.inspection.car?.type?.name + ' ' + props.inspection.car?.cc + ' ' + props.inspection.car?.fuel_type + ' ' + props.inspection.car?.transmission + ' ' + props.inspection.car?.year
+    
     const mesinPoint = props.menu_points.find(p =>
       p.inspection_point?.name === 'No Mesin'
     )
@@ -1174,17 +1190,23 @@ const findRelatedInfo = (pointName, pointData) => {
       p.inspection_point?.name === 'Pajak 5 Tahunan' || p.inspection_point?.name?.includes('Pajak 5 Tahunan')
     )
 
-    if (mesinPoint && hasResult(mesinPoint)) {
-      relatedInfo.mesin = {
-        name: 'No Mesin',
-        value: mesinPoint.inspection_point.results[0].note || '-'
+    if (props.inspection.car_id) {
+      relatedInfo.car = {
+        name: 'Type',
+        value: nameCar|| '-'
       }
     }
-
     if (rangkaPoint && hasResult(rangkaPoint)) {
       relatedInfo.rangka = {
         name: 'No Rangka',
         value: rangkaPoint.inspection_point.results[0].note || '-'
+      }
+    }
+
+    if (mesinPoint && hasResult(mesinPoint)) {
+      relatedInfo.mesin = {
+        name: 'No Mesin',
+        value: mesinPoint.inspection_point.results[0].note || '-'
       }
     }
 
@@ -1205,12 +1227,22 @@ const findRelatedInfo = (pointName, pointData) => {
 
   // Jika point adalah "BPKB Asli", tampilkan No Mesin dan No Rangka
   if (pointName === 'BPKB Asli') {
+
+    const nameCar = props.inspection.car?.brand?.name + ' ' + props.inspection.car?.model?.name + ' ' + props.inspection.car?.type?.name + ' ' + props.inspection.car?.cc + ' ' + props.inspection.car?.fuel_type + ' ' + props.inspection.car?.transmission + ' ' + props.inspection.car?.year
+    
     const mesinPoint = props.menu_points.find(p =>
       p.inspection_point?.name === 'No Mesin'
     )
     const rangkaPoint = props.menu_points.find(p =>
       p.inspection_point?.name === 'No Rangka'
     )
+
+    if (props.inspection.car_id) {
+      relatedInfo.car = {
+        name: 'Type',
+        value: nameCar|| '-'
+      }
+    }
 
     if (mesinPoint && hasResult(mesinPoint)) {
       relatedInfo.mesin = {

@@ -15,8 +15,8 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-4">
-        <form @submit.prevent="saveEstimation">
+      <form @submit.prevent="saveEstimation">
+        <div class="p-4 max-h-[60vh] overflow-y-auto">
           <div class="space-y-4">
             <!-- Part Name -->
             <div>
@@ -149,9 +149,10 @@
               ></textarea>
             </div>
           </div>
+        </div>
 
-          <!-- Modal Footer -->
-          <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
+        <!-- Modal Footer -->
+        <div class="flex justify-end space-x-3 px-4 py-4 border-t">
             <button
               type="button"
               @click="closeModal"
@@ -186,7 +187,6 @@
             </button>
           </div>
         </form>
-      </div>
     </div>
   </div>
 
