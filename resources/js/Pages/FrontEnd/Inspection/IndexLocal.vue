@@ -206,47 +206,52 @@
       </transition>
 
       <!-- Konten Utama -->
-      <div class="relative overflow-hidden">
-        <transition name="category-slide" mode="out-in">
-          <!-- Detail Kendaraan -->
-          <div v-if="activeCategory === 'vehicle'" key="vehicle">
-            <VehicleDetails
-              :inspection="inspection"
-              :CarDetail="CarDetail"
-              :allInspections="props.allInspections" 
-              @update-vehicle="updateVehicleDetails"
-              @save-car-details="saveNewCarDetails"
-              @update:validation="handleVehicleValidation"
-              @update:hasUnsavedChanges="handleUnsavedChanges"
-            />
-          </div>
+<!-- MENJADI INI: -->
+<div class="relative overflow-hidden">
+  <!-- Vehicle Details - Hidden tapi tetap di DOM -->
+  <div v-show="activeCategory === 'vehicle'" class="category-content">
+    <VehicleDetails
+      :inspection="inspection"
+      :CarDetail="CarDetail"
+      :allInspections="props.allInspections" 
+      @update-vehicle="updateVehicleDetails"
+      @save-car-details="saveNewCarDetails"
+      @update:validation="handleVehicleValidation"
+      @update:hasUnsavedChanges="handleUnsavedChanges"
+    />
+  </div>
 
-          <!-- Menu Inspeksi Biasa -->
-          <div v-else-if="activeMenuData && activeCategory !== 'conclusion'" :key="activeMenuData.id">
-            <CategorySection
-              :category="activeMenuData"
-              :inspection-id="inspection.id"
-              :car="props.car"
-              :form="form"
-              :head = "menuMode"
-              @updateResult="updateResult" 
-              @hapusPoint="hapusData"
-              @removeImage="removeImage"
-            />
-          </div>
+  <!-- Menu Inspeksi Biasa -->
+  <div 
+    v-show="activeMenuData && activeCategory !== 'conclusion'" 
+    class="category-content"
+  >
+    <CategorySection
+      v-if="activeMenuData"
+      :category="activeMenuData"
+      :inspection-id="inspection.id"
+      :car="props.car"
+      :form="form"
+      :head="menuMode"
+      :triggeredPoints="triggeredPoints"
+      @updateResult="updateResult"
+      @hapusPoint="hapusData"
+      @removeImage="removeImage"
+      @triggerPointsChanged="handleTriggerPointsChanged"
+    />
+  </div>
 
-          <!-- Kesimpulan -->
-          <div v-else-if="activeCategory === 'conclusion'" key="conclusion">
-            <ConclusionSection
-              :form="{ conclusion: conclusionState }"
-              :inspection-id="inspection.id"
-              :inspection="inspection"
-              :settings="inspection.settings || {}"
-              @updateConclusion="updateConclusion"
-            />
-          </div>
-        </transition>
-      </div>
+  <!-- Kesimpulan -->
+  <div v-show="activeCategory === 'conclusion'" class="category-content">
+    <ConclusionSection
+      :form="{ conclusion: conclusionState }"
+      :inspection-id="inspection.id"
+      :inspection="inspection"
+      :settings="inspection.settings || {}"
+      @updateConclusion="updateConclusion"
+    />
+  </div>
+</div>
 
       <!-- Tombol Simpan Final -->
       <div
@@ -934,18 +939,27 @@ const allCategories = computed(() => {
 const activeCategory = ref(allCategories.value[0]);
 const activeIndex = ref(0);
 
+// Di script setup
+const preloadedMenus = computed(() => {
+  const menus = {};
+  
+  // Preload semua menu data
+  props.appMenus.forEach(menu => {
+    menus[menu.id] = {
+      ...menu,
+      points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
+    };
+  });
+  
+  return menus;
+});
+
 // Ubah activeMenuData
 const activeMenuData = computed(() => {
   if (activeCategory.value === 'vehicle' || activeCategory.value === 'conclusion') {
     return null;
   }
-  const menu = props.appMenus.find(m => String(m.id) === activeCategory.value);
-  if (!menu) return null;
-
-  return {
-    ...menu,
-    points: getVisiblePoints(menu.menu_point, menu.input_type === 'damage')
-  };
+  return preloadedMenus.value[activeCategory.value] || null;
 });
 
 // const activeMenuData = computed(() => {
